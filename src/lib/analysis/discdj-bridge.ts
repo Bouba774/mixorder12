@@ -373,8 +373,11 @@ function calibrationInstruction(target: CalibrationTarget): string {
       return "Touche le bouton PLAYLIST dans DiscDJ";
     case "backButton":
       return "Touche le bouton RETOUR (flèche haut) depuis la playlist";
+    case "nameZoneDeck1":
+      return "Encadre la zone du nom du morceau chargé (haut de la playlist, platine 1)";
+    case "nameZoneDeck2":
+      return "Encadre la zone du nom du morceau chargé (haut de la playlist, platine 2)";
   }
-
 }
 
 function parseDurationText(s: string | null | undefined): number | null {
