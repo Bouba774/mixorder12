@@ -1627,19 +1627,104 @@ export async function readAndCleanNameOnce(
  */
 export function cleanOcrText(input: string): string {
   if (!input) return "";
-  let s = input.replace(/[\u0000-\u001f\u007f]+/g, " ");
-  // Fold weird look-alikes commonly emitted by tesseract.
-  s = s.replace(/[·•●▪■□]/g, " ");
-  // File extensions
+  // 1. Split into candidate lines (OCR often returns one per row).
+  const rawLines = input
+    .replace(/[\u0000-\u001f\u007f]+/g, "\n")
+    .replace(/[·•●▪■□]/g, " ")
+    .split(/[\r\n]+/);
+
+  // 2. Drop every line that isn't a track title — DiscDJ UI labels, status
+  //    markers, playlist headers, unknown-track placeholders, etc.
+  const kept = rawLines
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .filter((l) => !isDiscDJParasite(l));
+
+  if (kept.length === 0) return "";
+
+  // 3. Prefer the longest remaining line — the title is almost always the
+  //    line with the most alphabetic characters.
+  const chosen = kept
+    .slice()
+    .sort((a, b) => letterCount(b) - letterCount(a))[0];
+
+  // 4. Final scrub: strip file extensions, leading numeric prefixes,
+  //    embedded BPM mentions, emojis, repeated separators, edge punctuation.
+  let s = chosen;
   s = s.replace(/\.(mp3|wav|flac|m4a|aac|ogg|wma|aiff)\b/gi, "");
-  // Leading numeric prefix like "035_" / "03 - " / "12."
+  s = s.replace(/\bbpm\s*[:=]?\s*\d{2,3}(?:[.,]\d+)?\b/gi, " ");
   s = s.replace(/^\s*\d{1,4}\s*[_\-–—.:]+\s*/, "");
-  // Collapse repeated separators
+  s = s.replace(/[\p{Extended_Pictographic}]/gu, " ");
   s = s.replace(/[_]{2,}/g, "_").replace(/[-]{2,}/g, "-");
-  // Trim surrounding punctuation and whitespace
   s = s.replace(/^[\s\W_]+|[\s\W_]+$/g, "");
-  // Collapse whitespace
   s = s.replace(/\s+/g, " ").trim();
   return s;
+}
+
+/** Count alphabetic characters — length alone would rank "-----" too high. */
+function letterCount(s: string): number {
+  const m = s.match(/\p{L}/gu);
+  return m ? m.length : 0;
+}
+
+/**
+ * DiscDJ overlays a lot of non-title text on the playlist row (technical
+ * labels, section names, `<unknown>` placeholders). Any line matching one
+ * of these patterns is dropped before matching, so the comparator only ever
+ * sees plausible title text.
+ */
+const DISCDJ_PARASITE_TOKENS = [
+  "unknown",
+  "pitch bend",
+  "pitchbend",
+  "keylock",
+  "key lock",
+  "reloop",
+  "loop in",
+  "loop out",
+  "loop",
+  "cue",
+  "sync",
+  "sampler",
+  "tempo",
+  "master",
+  "treble",
+  "mid",
+  "bass",
+  "eq",
+  "gain",
+  "volume",
+  "browse",
+  "playlist",
+  "playlists",
+  "history",
+  "search",
+  "all purpose",
+  "recording",
+  "record",
+  "auto mix",
+  "automix",
+  "quantize",
+  "beatgrid",
+  "beat grid",
+  "hot cue",
+  "flanger",
+  "echo",
+  "reverb",
+  "filter",
+  "fx",
+];
+
+function isDiscDJParasite(line: string): boolean {
+  const low = line.toLowerCase().trim();
+  if (!low) return true;
+  if (low === "in" || low === "out" || low === "on" || low === "off") return true;
+  // Placeholders like "<unknown>" or "< unknown >".
+  if (/^<\s*\w+\s*>$/.test(low)) return true;
+  // Lines that are ONLY digits / punctuation (BPM readouts, timers).
+  if (letterCount(low) < 2) return true;
+  // Very short label-like tokens.
+  if (low.length <= 3 && !/\s/.test(low)) return true;
+  return DISCDJ_PARASITE_TOKENS.some((tok) => low === tok || low.startsWith(tok + " ") || low.endsWith(" " + tok));
 }
 
