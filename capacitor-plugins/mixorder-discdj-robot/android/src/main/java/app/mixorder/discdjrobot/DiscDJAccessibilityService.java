@@ -341,35 +341,36 @@ public class DiscDJAccessibilityService extends AccessibilityService {
                 Bitmap cropped = Bitmap.createBitmap(full, crop.left, crop.top, crop.width(), crop.height());
                 OcrResult result = baseResult(displayCropRect, expectedPackage);
                 result.fullScreenshotDataUrl = bitmapDataUrl(full, Bitmap.CompressFormat.JPEG, 45);
-                Bitmap ocrInput = prepareForOcr(cropped);
                 result.croppedDataUrl = bitmapDataUrl(cropped, Bitmap.CompressFormat.PNG, 100);
-                result.ocrInputDataUrl = bitmapDataUrl(ocrInput, Bitmap.CompressFormat.PNG, 100);
 
-                TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-                recognizer.process(InputImage.fromBitmap(ocrInput, 0))
-                        .addOnSuccessListener(text -> {
-                            List<String> candidates = extractOcrTexts(text);
-                            result.zoneTexts.addAll(candidates);
-                            result.raw = join(candidates);
-                            if (containsBadSourceText(result.raw)) {
-                                result.sourceOk = false;
-                                result.parseReason = "Mauvaise source d'image capturée : le texte OCR contient des éléments de MixOrder ou d'un overlay.";
-                            } else {
-                                result.bpm = parseBestBpm(candidates);
-                                if (result.bpm == null) {
-                                    result.parseReason = result.raw == null || result.raw.isEmpty()
-                                            ? "OCR vide dans le rectangle BPM calibré."
-                                            : "Texte OCR brut lu, mais aucun BPM valide entre 40 et 240 n'a été retenu.";
+                // Build several OCR-ready variants of the crop (different
+                // preprocessing strategies) so text of any polarity — dark on
+                // light, white on blue "selected row", low contrast, noisy —
+                // has a real chance of being recognized. All variants are
+                // OCR'd and their outputs merged, then voted on.
+                final List<Bitmap> variants = prepareOcrVariants(cropped);
+                if (variants.isEmpty()) variants.add(cropped);
+                result.ocrInputDataUrl = bitmapDataUrl(variants.get(0), Bitmap.CompressFormat.PNG, 100);
+
+                final List<String> allTexts = new ArrayList<>();
+                final int[] remaining = new int[] { variants.size() };
+                for (int idx = 0; idx < variants.size(); idx++) {
+                    TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+                    recognizer.process(InputImage.fromBitmap(variants.get(idx), 0))
+                            .addOnSuccessListener(text -> {
+                                synchronized (allTexts) { allTexts.addAll(extractOcrTexts(text)); }
+                                recognizer.close();
+                                synchronized (remaining) {
+                                    if (--remaining[0] == 0) finalizeOcr(result, allTexts, cb);
                                 }
-                            }
-                            recognizer.close();
-                            cb.onResult(result);
-                        })
-                        .addOnFailureListener(e -> {
-                            result.parseReason = "OCR impossible : " + e.getMessage();
-                            recognizer.close();
-                            cb.onResult(result);
-                        });
+                            })
+                            .addOnFailureListener(e -> {
+                                recognizer.close();
+                                synchronized (remaining) {
+                                    if (--remaining[0] == 0) finalizeOcr(result, allTexts, cb);
+                                }
+                            });
+                }
             }
 
             @Override
@@ -384,6 +385,30 @@ public class DiscDJAccessibilityService extends AccessibilityService {
             r.parseReason = "Capture DiscDJ impossible : " + e.getMessage();
             cb.onResult(r);
         }
+    }
+
+    private void finalizeOcr(OcrResult result, List<String> allTexts, OcrCallback cb) {
+        List<String> uniq = new ArrayList<>();
+        for (String s : allTexts) {
+            if (s == null) continue;
+            String t = s.trim();
+            if (t.isEmpty()) continue;
+            if (!uniq.contains(t)) uniq.add(t);
+        }
+        result.zoneTexts.addAll(uniq);
+        result.raw = join(uniq);
+        if (containsBadSourceText(result.raw)) {
+            result.sourceOk = false;
+            result.parseReason = "Mauvaise source d'image capturée : le texte OCR contient des éléments de MixOrder ou d'un overlay.";
+        } else {
+            result.bpm = parseBestBpm(uniq);
+            if (result.bpm == null) {
+                result.parseReason = result.raw == null || result.raw.isEmpty()
+                        ? "OCR vide dans le rectangle BPM calibré (toutes variantes de prétraitement)."
+                        : "Texte OCR lu sur " + uniq.size() + " variantes, mais aucun BPM valide entre 40 et 240.";
+            }
+        }
+        cb.onResult(result);
     }
 
     private OcrResult baseResult(Rect crop, String expectedPackage) {
