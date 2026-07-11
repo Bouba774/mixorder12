@@ -251,7 +251,7 @@ function createNativeBridge(): DiscDJBridge {
       await plugin.openAccessibilitySettings();
     },
     async captureCalibration(target) {
-      const kind: "point" | "zone" = target.startsWith("bpm") ? "zone" : "point";
+      const kind: "point" | "zone" = isRectTarget(target) ? "zone" : "point";
       const instructions = calibrationInstruction(target);
       const r = await plugin.captureCalibration({ target, kind, instructions });
       if (r.cancelled) return { cancelled: true };
