@@ -312,6 +312,9 @@ export function DiscDJRobotPanel() {
             onSetElement={updateCalibrationElement}
             onTestRead={testRead}
             onTestClick={testClick}
+            onTestPlaylist={testPlaylistButton}
+            onTestBack={testBackButton}
+            onTestNameZone={testNameZone}
           />
         )}
         {panel === "settings" && <SettingsPanel settings={state.settings} onSettingsChange={updateSettings} />}
