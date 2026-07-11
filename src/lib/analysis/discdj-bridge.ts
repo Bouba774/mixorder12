@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { DiscDJRobot } from "mixorder-discdj-robot";
-import type { CalibrationPoint, CalibrationRect, CalibrationTarget } from "./discdj-settings";
+import { isRectTarget, type CalibrationPoint, type CalibrationRect, type CalibrationTarget } from "./discdj-settings";
 
 
 /**
