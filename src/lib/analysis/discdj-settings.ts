@@ -15,14 +15,16 @@ export type DiscDJMatchingMode = "smart";
  */
 export type DiscDJAnalysisMode = "auto-sync" | "verification" | "autosync-name";
 
-/** The calibratable elements. `playlistButton`/`backButton` are used by the AutoSync (name-checked) mode. */
+/** The calibratable elements. `playlistButton`/`backButton`/`nameZoneDeck*` are used by the AutoSync (name-checked) mode. */
 export type CalibrationTarget =
   | "nextDeck1"
   | "nextDeck2"
   | "bpmDeck1"
   | "bpmDeck2"
   | "playlistButton"
-  | "backButton";
+  | "backButton"
+  | "nameZoneDeck1"
+  | "nameZoneDeck2";
 
 /** Screen where a calibration target lives. Governs the contextual capture flow. */
 export type CalibrationScreen = "main" | "playlist";
@@ -35,7 +37,14 @@ export const CALIBRATION_SCREEN: Record<CalibrationTarget, CalibrationScreen> = 
   playlistButton: "main",
   // Corrected: the Back button only exists on the playlist screen.
   backButton: "playlist",
+  nameZoneDeck1: "playlist",
+  nameZoneDeck2: "playlist",
 };
+
+/** Returns true for calibration targets that are rectangles (zones) rather than points. */
+export function isRectTarget(target: CalibrationTarget): boolean {
+  return target.startsWith("bpm") || target.startsWith("nameZone");
+}
 
 
 export interface CalibrationPoint {
