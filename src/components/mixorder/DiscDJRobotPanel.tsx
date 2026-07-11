@@ -75,6 +75,9 @@ export function DiscDJRobotPanel() {
     supportsDirectCapture,
     testRead,
     testClick,
+    testPlaylistButton,
+    testBackButton,
+    testNameZone,
     openAccessibilitySettings,
   } = useDiscDJRobot();
   const [deckSheetOpen, setDeckSheetOpen] = useState(false);
