@@ -209,7 +209,7 @@ export function setCalibrationElement(
 ): DiscDJRobotSettings {
   const now = Date.now();
   const timestamps = { ...settings.calibration.timestamps };
-  const isRect = target.startsWith("bpm");
+  const isRect = isRectTarget(target);
   const normalizedValue = isRect
     ? normalizeRect(value as CalibrationRect | null | undefined)
     : normalizePoint(value as CalibrationPoint | null | undefined);
