@@ -548,6 +548,68 @@ function CalibrationPanel({
         </div>
       )}
 
+      {/* AutoSync tests */}
+      {settings.analysisMode === "autosync-name" && (
+        <div className="space-y-2 rounded-lg border border-primary/40 bg-primary/5 p-2">
+          <p className="text-[11px] font-semibold text-foreground">Tests AutoSync</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              disabled={testing !== null}
+              onClick={async () => {
+                setTesting("playlistBtn");
+                const r = await onTestPlaylist();
+                setTesting(null);
+                setAutoSyncTestResult(`${r.ok ? "✓" : "✗"} Playlist : ${r.message}`);
+              }}
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-accent/40 px-2 text-[10px] font-semibold disabled:opacity-50"
+            >
+              {testing === "playlistBtn" ? <Loader2 className="h-3 w-3 animate-spin" /> : <MousePointer2 className="h-3 w-3" />}
+              Test Playlist
+            </button>
+            <button
+              disabled={testing !== null}
+              onClick={async () => {
+                setTesting("backBtn");
+                const r = await onTestBack();
+                setTesting(null);
+                setAutoSyncTestResult(`${r.ok ? "✓" : "✗"} Retour : ${r.message}`);
+              }}
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-accent/40 px-2 text-[10px] font-semibold disabled:opacity-50"
+            >
+              {testing === "backBtn" ? <Loader2 className="h-3 w-3 animate-spin" /> : <MousePointer2 className="h-3 w-3" />}
+              Test Retour
+            </button>
+            {[1, 2].map((d) => {
+              const deck = d as DeckId;
+              const key = `nameZone${deck}`;
+              return (
+                <button
+                  key={key}
+                  disabled={testing !== null}
+                  onClick={async () => {
+                    setTesting(key);
+                    const r = await onTestNameZone(deck);
+                    setTesting(null);
+                    setAutoSyncTestResult(
+                      `${r.ok ? "✓" : "✗"} Zone Nom P${deck} — ${r.message}`,
+                    );
+                  }}
+                  className="inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-primary px-2 text-[10px] font-semibold text-primary-foreground disabled:opacity-50"
+                >
+                  {testing === key ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScanLine className="h-3 w-3" />}
+                  Test Nom P{deck}
+                </button>
+              );
+            })}
+          </div>
+          {autoSyncTestResult && (
+            <div className={`rounded-md px-2 py-1.5 text-[10px] ${autoSyncTestResult.startsWith("✓") ? "bg-primary/10 text-foreground" : "bg-destructive/10 text-destructive"}`}>
+              {autoSyncTestResult}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Test mode */}
       <div className="space-y-2">
         <p className="text-[11px] font-semibold text-foreground">Tester la calibration</p>
