@@ -611,7 +611,7 @@ export function useDiscDJRobot() {
             if (runIdRef.current !== runId) return;
             if (bpm == null) {
               log("warning", `${progress} BPM illisible — nouvelle tentative.`);
-              await sleep(500);
+              await bgSleep(bridge, 500);
               continue;
             }
 
