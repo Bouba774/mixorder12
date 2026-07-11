@@ -1401,29 +1401,74 @@ async function readNameWithRetries(
   const attempts = Math.max(1, maxRetries);
   for (let i = 1; i <= attempts; i++) {
     if (!stillRunning()) break;
-    let raw = "";
-    try {
-      const r = await bridge.readBpm(deck, { bpmZone: rowZone });
-      // The OCR text comes back as `raw` (joined) and `zoneTexts` (per-line).
-      // Prefer the longest single line — it's the row's title.
-      const lines = (r.zoneTexts ?? []).map((s) => s.trim()).filter(Boolean);
-      raw = lines.sort((a, b) => b.length - a.length)[0] ?? r.raw ?? "";
-    } catch (e) {
-      log("warning", `[${positionLabel}] OCR nom tentative ${i}/${attempts} échouée: ${describe(e)}`);
-    }
-    if (raw) {
-      const m = findBestMatch<Track>(raw, library, (t) => t.name, { threshold });
+    const { cleaned } = await readAndCleanNameOnce(bridge, deck, rowZone);
+    if (cleaned) {
+      const m = findBestMatch<Track>(cleaned, library, (t) => t.name, { threshold });
       log(
         "info",
-        `[${positionLabel}] OCR nom ${i}/${attempts}: "${raw}" → ${m.best ? `${m.best.item.name} (${(m.best.score * 100).toFixed(0)}%)` : "aucun candidat"}`,
+        `[${positionLabel}] OCR nom ${i}/${attempts}: "${cleaned}" → ${m.best ? `${m.best.item.name} (${(m.best.score * 100).toFixed(0)}%)` : "aucun candidat"}`,
       );
       if (!bestMatch.best || (m.best?.score ?? 0) > (bestMatch.best?.score ?? 0)) {
         bestMatch = m;
-        bestOcr = raw;
+        bestOcr = cleaned;
       }
       if (m.confident) break;
+    } else {
+      log("warning", `[${positionLabel}] OCR nom ${i}/${attempts}: aucun texte lisible dans la zone calibrée.`);
     }
     if (i < attempts) await sleep(350);
   }
   return { ocrName: bestOcr, match: bestMatch };
 }
+
+/**
+ * One OCR pass on the calibrated name zone. Returns both the raw text and a
+ * cleaned version (control chars stripped, whitespace normalized, obvious
+ * OCR parasites removed). The library-side normalization is separate and
+ * lives in name-normalize.ts.
+ */
+export async function readAndCleanNameOnce(
+  bridge: DiscDJBridge,
+  deck: DeckId,
+  rowZone: import("./discdj-settings").CalibrationRect,
+): Promise<{ raw: string; cleaned: string; zoneTexts: string[] }> {
+  let raw = "";
+  let zoneTexts: string[] = [];
+  try {
+    const r = await bridge.readBpm(deck, { bpmZone: rowZone });
+    zoneTexts = (r.zoneTexts ?? []).map((s) => s.trim()).filter(Boolean);
+    // Prefer joining multi-line OCR output (title + separator) so we don't
+    // lose the second half of a wrapped name; fall back to raw.
+    raw = zoneTexts.length > 0 ? zoneTexts.join(" ") : (r.raw ?? "");
+  } catch { /* swallow — caller retries */ }
+  return { raw, cleaned: cleanOcrText(raw), zoneTexts };
+}
+
+/**
+ * Light-touch cleanup of the OCR string BEFORE library matching:
+ *  - strip control chars
+ *  - collapse repeated whitespace / underscores / dashes
+ *  - drop leading numeric prefixes (e.g. "035_", "03 - ")
+ *  - drop trailing file extensions
+ *  - remove obviously-parasitic single characters
+ * Case is preserved so the UI can display it verbatim; normalization to a
+ * comparable form is done by name-normalize.ts.
+ */
+export function cleanOcrText(input: string): string {
+  if (!input) return "";
+  let s = input.replace(/[\u0000-\u001f\u007f]+/g, " ");
+  // Fold weird look-alikes commonly emitted by tesseract.
+  s = s.replace(/[·•●▪■□]/g, " ");
+  // File extensions
+  s = s.replace(/\.(mp3|wav|flac|m4a|aac|ogg|wma|aiff)\b/gi, "");
+  // Leading numeric prefix like "035_" / "03 - " / "12."
+  s = s.replace(/^\s*\d{1,4}\s*[_\-–—.:]+\s*/, "");
+  // Collapse repeated separators
+  s = s.replace(/[_]{2,}/g, "_").replace(/[-]{2,}/g, "-");
+  // Trim surrounding punctuation and whitespace
+  s = s.replace(/^[\s\W_]+|[\s\W_]+$/g, "");
+  // Collapse whitespace
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
