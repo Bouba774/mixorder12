@@ -70,6 +70,10 @@ export interface DiscDJCalibration {
   playlistButton: CalibrationPoint | null;
   /** AutoSync: tap point on the "Back to main screen" button (playlist screen). */
   backButton: CalibrationPoint | null;
+  /** AutoSync: OCR rectangle for the currently-loaded track name in the playlist, deck 1. */
+  nameZoneDeck1: CalibrationRect | null;
+  /** AutoSync: OCR rectangle for the currently-loaded track name in the playlist, deck 2. */
+  nameZoneDeck2: CalibrationRect | null;
   savedAt: number | null;
   /** Per-element last-calibration timestamps (ms epoch). */
   timestamps: Partial<Record<CalibrationTarget, number>>;
