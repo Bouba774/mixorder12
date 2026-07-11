@@ -373,9 +373,8 @@ function calibrationInstruction(target: CalibrationTarget): string {
       return "Touche le bouton PLAYLIST dans DiscDJ";
     case "backButton":
       return "Touche le bouton RETOUR (flèche haut) depuis la playlist";
-    case "playlistSelectedRow":
-      return "Encadre la ligne SÉLECTIONNÉE (bleue) de la playlist";
   }
+
 }
 
 function parseDurationText(s: string | null | undefined): number | null {
