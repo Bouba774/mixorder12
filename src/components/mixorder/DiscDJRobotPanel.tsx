@@ -332,9 +332,10 @@ function RunOptions({ settings, onSettingsChange }: { settings: DiscDJRobotSetti
       </div>
       {mode === "autosync-name" && (
         <p className="rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-[10px] leading-tight text-foreground">
-          Le robot lit le BPM, ouvre la playlist, vérifie le nom (OCR + comparaison tolérante), n'associe le BPM qu'après validation, puis revient et clique Next.
+          Le robot lit le BPM sur le deck, ouvre la playlist, lit le 1er morceau affiché en bleu (= morceau chargé), associe le BPM après validation du nom, revient à l'écran principal et clique Next.
         </p>
       )}
+
       <div className="grid grid-cols-2 gap-1.5 pt-1">
         <StartIndexField value={settings.startAtIndex} onCommit={(v) => onSettingsChange({ startAtIndex: v })} />
 
