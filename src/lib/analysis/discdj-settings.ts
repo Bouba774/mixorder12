@@ -57,16 +57,15 @@ export interface DiscDJCalibration {
   nextDeck2: CalibrationPoint | null;
   bpmDeck1: CalibrationRect | null;
   bpmDeck2: CalibrationRect | null;
-  /** AutoSync (name-checked): tap point on the "Playlist" button. */
+  /** AutoSync (name-checked): tap point on the "Playlist" button (main screen). */
   playlistButton: CalibrationPoint | null;
-  /** AutoSync: tap point on the "Back to main screen" button. */
+  /** AutoSync: tap point on the "Back to main screen" button (playlist screen). */
   backButton: CalibrationPoint | null;
-  /** AutoSync: rect around the currently selected (blue) playlist row. */
-  playlistSelectedRow: CalibrationRect | null;
   savedAt: number | null;
   /** Per-element last-calibration timestamps (ms epoch). */
   timestamps: Partial<Record<CalibrationTarget, number>>;
 }
+
 
 export interface DiscDJRobotSettings {
   calibration: DiscDJCalibration;
