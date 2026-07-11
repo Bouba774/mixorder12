@@ -15,14 +15,16 @@ export type DiscDJMatchingMode = "smart";
  */
 export type DiscDJAnalysisMode = "auto-sync" | "verification" | "autosync-name";
 
-/** The calibratable elements. `playlistButton`/`backButton` are used by the AutoSync (name-checked) mode. */
+/** The calibratable elements. `playlistButton`/`backButton`/`nameZoneDeck*` are used by the AutoSync (name-checked) mode. */
 export type CalibrationTarget =
   | "nextDeck1"
   | "nextDeck2"
   | "bpmDeck1"
   | "bpmDeck2"
   | "playlistButton"
-  | "backButton";
+  | "backButton"
+  | "nameZoneDeck1"
+  | "nameZoneDeck2";
 
 /** Screen where a calibration target lives. Governs the contextual capture flow. */
 export type CalibrationScreen = "main" | "playlist";
@@ -35,7 +37,14 @@ export const CALIBRATION_SCREEN: Record<CalibrationTarget, CalibrationScreen> = 
   playlistButton: "main",
   // Corrected: the Back button only exists on the playlist screen.
   backButton: "playlist",
+  nameZoneDeck1: "playlist",
+  nameZoneDeck2: "playlist",
 };
+
+/** Returns true for calibration targets that are rectangles (zones) rather than points. */
+export function isRectTarget(target: CalibrationTarget): boolean {
+  return target.startsWith("bpm") || target.startsWith("nameZone");
+}
 
 
 export interface CalibrationPoint {
@@ -61,6 +70,10 @@ export interface DiscDJCalibration {
   playlistButton: CalibrationPoint | null;
   /** AutoSync: tap point on the "Back to main screen" button (playlist screen). */
   backButton: CalibrationPoint | null;
+  /** AutoSync: OCR rectangle for the currently-loaded track name in the playlist, deck 1. */
+  nameZoneDeck1: CalibrationRect | null;
+  /** AutoSync: OCR rectangle for the currently-loaded track name in the playlist, deck 2. */
+  nameZoneDeck2: CalibrationRect | null;
   savedAt: number | null;
   /** Per-element last-calibration timestamps (ms epoch). */
   timestamps: Partial<Record<CalibrationTarget, number>>;
@@ -118,6 +131,9 @@ export const DEFAULT_DISCDJ_SETTINGS: DiscDJRobotSettings = {
     bpmDeck2: null,
     playlistButton: null,
     backButton: null,
+    nameZoneDeck1: null,
+    nameZoneDeck2: null,
+
 
     savedAt: null,
     timestamps: {},
@@ -193,7 +209,7 @@ export function setCalibrationElement(
 ): DiscDJRobotSettings {
   const now = Date.now();
   const timestamps = { ...settings.calibration.timestamps };
-  const isRect = target.startsWith("bpm");
+  const isRect = isRectTarget(target);
   const normalizedValue = isRect
     ? normalizeRect(value as CalibrationRect | null | undefined)
     : normalizePoint(value as CalibrationPoint | null | undefined);
@@ -264,6 +280,9 @@ function normalizeCalibration(input: Partial<DiscDJCalibration> | undefined): Di
     bpmDeck2: normalizeRect(input?.bpmDeck2),
     playlistButton: normalizePoint(input?.playlistButton),
     backButton: normalizePoint(input?.backButton),
+    nameZoneDeck1: normalizeRect(input?.nameZoneDeck1),
+    nameZoneDeck2: normalizeRect(input?.nameZoneDeck2),
+
 
     savedAt: typeof input?.savedAt === "number" ? input.savedAt : null,
     timestamps:

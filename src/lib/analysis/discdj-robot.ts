@@ -554,21 +554,21 @@ export function useDiscDJRobot() {
       if (settings.analysisMode === "autosync-name") {
         const playlistBtn = settings.calibration.playlistButton;
         const backBtn = settings.calibration.backButton;
-        if (!playlistBtn || !backBtn) {
-          const msg =
-            "Calibration AutoSync incomplète : les boutons Playlist (écran principal) et Retour (écran playlist) doivent être calibrés.";
+        const nameZone = deck === 1 ? settings.calibration.nameZoneDeck1 : settings.calibration.nameZoneDeck2;
+        const missingCal: string[] = [];
+        if (!cal.next) missingCal.push(`bouton Next platine ${deck}`);
+        if (!cal.bpmZone) missingCal.push(`zone BPM platine ${deck}`);
+        if (!playlistBtn) missingCal.push("bouton Playlist");
+        if (!backBtn) missingCal.push("bouton Retour");
+        if (!nameZone) missingCal.push(`zone Nom du morceau platine ${deck}`);
+        if (missingCal.length > 0) {
+          const msg = `Calibration AutoSync incomplète : ${missingCal.join(", ")}.`;
           log("error", msg);
           setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
           return;
         }
 
-        // The first playlist row is ALWAYS the track currently loaded on the
-        // deck (highlighted in blue by DiscDJ). Its position is fixed by the
-        // DiscDJ layout — deck 1 fills the left half, deck 2 the right half,
-        // and the selected row sits at the top just below the toolbar. We
-        // derive its OCR rect deterministically from the deck id so there is
-        // nothing to calibrate manually.
-        const rowZone: CalibrationRect = firstRowZoneFor(deck);
+        const rowZone: CalibrationRect = nameZone!;
 
         const stepStartedAt: number[] = [];
         const runStartedAt = Date.now();
@@ -1075,6 +1075,99 @@ export function useDiscDJRobot() {
     };
   }, []);
 
+  const testPlaylistButton = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
+    const settings = settingsRef.current;
+    const point = settings.calibration.playlistButton;
+    if (!point) return { ok: false, message: "Bouton Playlist non calibré." };
+    setState((s) => ({ ...s, phase: "testing" }));
+    try {
+      log("info", "Test bouton Playlist : ouverture de DiscDJ…");
+      await bridgeRef.current.openApp();
+      await sleep(settings.waitOnOpenMs);
+      await bridgeRef.current.tapNext(1, { point, pressDurationMs: settings.pressDurationMs });
+      await sleep(settings.waitAfterPlaylistOpenMs);
+      setState((s) => ({ ...s, phase: "idle" }));
+      const msg = "Clic Playlist envoyé — vérifie que l'écran playlist est bien affiché dans DiscDJ.";
+      log("success", msg);
+      return { ok: true, message: msg };
+    } catch (e) {
+      const message = describe(e);
+      log("error", `Test bouton Playlist échoué : ${message}`);
+      setState((s) => ({ ...s, phase: "error", errorMessage: message }));
+      return { ok: false, message };
+    }
+  }, [log]);
+
+  const testBackButton = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
+    const settings = settingsRef.current;
+    const playlist = settings.calibration.playlistButton;
+    const back = settings.calibration.backButton;
+    if (!back) return { ok: false, message: "Bouton Retour non calibré." };
+    setState((s) => ({ ...s, phase: "testing" }));
+    try {
+      log("info", "Test bouton Retour : préparation depuis l'écran playlist…");
+      await bridgeRef.current.openApp();
+      await sleep(settings.waitOnOpenMs);
+      if (playlist) {
+        await bridgeRef.current.tapNext(1, { point: playlist, pressDurationMs: settings.pressDurationMs });
+        await sleep(settings.waitAfterPlaylistOpenMs);
+      }
+      await bridgeRef.current.tapNext(1, { point: back, pressDurationMs: settings.pressDurationMs });
+      await sleep(settings.waitAfterBackMs);
+      setState((s) => ({ ...s, phase: "idle" }));
+      const msg = "Clic Retour envoyé — vérifie que l'écran principal est bien affiché.";
+      log("success", msg);
+      return { ok: true, message: msg };
+    } catch (e) {
+      const message = describe(e);
+      log("error", `Test bouton Retour échoué : ${message}`);
+      setState((s) => ({ ...s, phase: "error", errorMessage: message }));
+      return { ok: false, message };
+    }
+  }, [log]);
+
+  const testNameZone = useCallback(
+    async (deck: DeckId): Promise<{ ok: boolean; raw: string; cleaned: string; message: string }> => {
+      const settings = settingsRef.current;
+      const zone = deck === 1 ? settings.calibration.nameZoneDeck1 : settings.calibration.nameZoneDeck2;
+      const playlist = settings.calibration.playlistButton;
+      const back = settings.calibration.backButton;
+      if (!zone) return { ok: false, raw: "", cleaned: "", message: `Zone nom du morceau platine ${deck} non calibrée.` };
+      if (!playlist) return { ok: false, raw: "", cleaned: "", message: "Bouton Playlist non calibré." };
+      setState((s) => ({ ...s, phase: "testing", deck }));
+      try {
+        log("info", `Test zone Nom platine ${deck} : ouverture playlist…`);
+        await bridgeRef.current.openApp();
+        await sleep(settings.waitOnOpenMs);
+        await bridgeRef.current.tapNext(deck, { point: playlist, pressDurationMs: settings.pressDurationMs });
+        await sleep(settings.waitAfterPlaylistOpenMs);
+        const { raw, cleaned } = await readAndCleanNameOnce(bridgeRef.current, deck, zone);
+        // Best-effort return to main so the user isn't stuck.
+        if (back) {
+          try {
+            await bridgeRef.current.tapNext(deck, { point: back, pressDurationMs: settings.pressDurationMs });
+            await sleep(settings.waitAfterBackMs);
+          } catch { /* ignore */ }
+        }
+        setState((s) => ({ ...s, phase: "idle" }));
+        if (cleaned) {
+          const msg = `OCR brut : « ${raw} » · nettoyé : « ${cleaned} »`;
+          log("success", `Test zone Nom platine ${deck} : ${msg}`);
+          return { ok: true, raw, cleaned, message: msg };
+        }
+        const msg = "Zone lue mais aucun texte détecté — élargis le rectangle ou recalibre.";
+        log("warning", `Test zone Nom platine ${deck} : ${msg}`);
+        return { ok: false, raw, cleaned, message: msg };
+      } catch (e) {
+        const message = describe(e);
+        log("error", `Test zone Nom platine ${deck} échoué : ${message}`);
+        setState((s) => ({ ...s, phase: "error", errorMessage: message }));
+        return { ok: false, raw: "", cleaned: "", message };
+      }
+    },
+    [log],
+  );
+
   return {
     state,
     start,
@@ -1091,6 +1184,9 @@ export function useDiscDJRobot() {
     supportsDirectCapture,
     testRead,
     testClick,
+    testPlaylistButton,
+    testBackButton,
+    testNameZone,
     openAccessibilitySettings,
   } as const;
 }
@@ -1401,29 +1497,74 @@ async function readNameWithRetries(
   const attempts = Math.max(1, maxRetries);
   for (let i = 1; i <= attempts; i++) {
     if (!stillRunning()) break;
-    let raw = "";
-    try {
-      const r = await bridge.readBpm(deck, { bpmZone: rowZone });
-      // The OCR text comes back as `raw` (joined) and `zoneTexts` (per-line).
-      // Prefer the longest single line — it's the row's title.
-      const lines = (r.zoneTexts ?? []).map((s) => s.trim()).filter(Boolean);
-      raw = lines.sort((a, b) => b.length - a.length)[0] ?? r.raw ?? "";
-    } catch (e) {
-      log("warning", `[${positionLabel}] OCR nom tentative ${i}/${attempts} échouée: ${describe(e)}`);
-    }
-    if (raw) {
-      const m = findBestMatch<Track>(raw, library, (t) => t.name, { threshold });
+    const { cleaned } = await readAndCleanNameOnce(bridge, deck, rowZone);
+    if (cleaned) {
+      const m = findBestMatch<Track>(cleaned, library, (t) => t.name, { threshold });
       log(
         "info",
-        `[${positionLabel}] OCR nom ${i}/${attempts}: "${raw}" → ${m.best ? `${m.best.item.name} (${(m.best.score * 100).toFixed(0)}%)` : "aucun candidat"}`,
+        `[${positionLabel}] OCR nom ${i}/${attempts}: "${cleaned}" → ${m.best ? `${m.best.item.name} (${(m.best.score * 100).toFixed(0)}%)` : "aucun candidat"}`,
       );
       if (!bestMatch.best || (m.best?.score ?? 0) > (bestMatch.best?.score ?? 0)) {
         bestMatch = m;
-        bestOcr = raw;
+        bestOcr = cleaned;
       }
       if (m.confident) break;
+    } else {
+      log("warning", `[${positionLabel}] OCR nom ${i}/${attempts}: aucun texte lisible dans la zone calibrée.`);
     }
     if (i < attempts) await sleep(350);
   }
   return { ocrName: bestOcr, match: bestMatch };
 }
+
+/**
+ * One OCR pass on the calibrated name zone. Returns both the raw text and a
+ * cleaned version (control chars stripped, whitespace normalized, obvious
+ * OCR parasites removed). The library-side normalization is separate and
+ * lives in name-normalize.ts.
+ */
+export async function readAndCleanNameOnce(
+  bridge: DiscDJBridge,
+  deck: DeckId,
+  rowZone: import("./discdj-settings").CalibrationRect,
+): Promise<{ raw: string; cleaned: string; zoneTexts: string[] }> {
+  let raw = "";
+  let zoneTexts: string[] = [];
+  try {
+    const r = await bridge.readBpm(deck, { bpmZone: rowZone });
+    zoneTexts = (r.zoneTexts ?? []).map((s) => s.trim()).filter(Boolean);
+    // Prefer joining multi-line OCR output (title + separator) so we don't
+    // lose the second half of a wrapped name; fall back to raw.
+    raw = zoneTexts.length > 0 ? zoneTexts.join(" ") : (r.raw ?? "");
+  } catch { /* swallow — caller retries */ }
+  return { raw, cleaned: cleanOcrText(raw), zoneTexts };
+}
+
+/**
+ * Light-touch cleanup of the OCR string BEFORE library matching:
+ *  - strip control chars
+ *  - collapse repeated whitespace / underscores / dashes
+ *  - drop leading numeric prefixes (e.g. "035_", "03 - ")
+ *  - drop trailing file extensions
+ *  - remove obviously-parasitic single characters
+ * Case is preserved so the UI can display it verbatim; normalization to a
+ * comparable form is done by name-normalize.ts.
+ */
+export function cleanOcrText(input: string): string {
+  if (!input) return "";
+  let s = input.replace(/[\u0000-\u001f\u007f]+/g, " ");
+  // Fold weird look-alikes commonly emitted by tesseract.
+  s = s.replace(/[·•●▪■□]/g, " ");
+  // File extensions
+  s = s.replace(/\.(mp3|wav|flac|m4a|aac|ogg|wma|aiff)\b/gi, "");
+  // Leading numeric prefix like "035_" / "03 - " / "12."
+  s = s.replace(/^\s*\d{1,4}\s*[_\-–—.:]+\s*/, "");
+  // Collapse repeated separators
+  s = s.replace(/[_]{2,}/g, "_").replace(/[-]{2,}/g, "-");
+  // Trim surrounding punctuation and whitespace
+  s = s.replace(/^[\s\W_]+|[\s\W_]+$/g, "");
+  // Collapse whitespace
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+

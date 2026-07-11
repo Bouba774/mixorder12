@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { DiscDJRobot } from "mixorder-discdj-robot";
-import type { CalibrationPoint, CalibrationRect, CalibrationTarget } from "./discdj-settings";
+import { isRectTarget, type CalibrationPoint, type CalibrationRect, type CalibrationTarget } from "./discdj-settings";
 
 
 /**
@@ -251,7 +251,7 @@ function createNativeBridge(): DiscDJBridge {
       await plugin.openAccessibilitySettings();
     },
     async captureCalibration(target) {
-      const kind: "point" | "zone" = target.startsWith("bpm") ? "zone" : "point";
+      const kind: "point" | "zone" = isRectTarget(target) ? "zone" : "point";
       const instructions = calibrationInstruction(target);
       const r = await plugin.captureCalibration({ target, kind, instructions });
       if (r.cancelled) return { cancelled: true };
@@ -373,8 +373,11 @@ function calibrationInstruction(target: CalibrationTarget): string {
       return "Touche le bouton PLAYLIST dans DiscDJ";
     case "backButton":
       return "Touche le bouton RETOUR (flèche haut) depuis la playlist";
+    case "nameZoneDeck1":
+      return "Encadre la zone du nom du morceau chargé (haut de la playlist, platine 1)";
+    case "nameZoneDeck2":
+      return "Encadre la zone du nom du morceau chargé (haut de la playlist, platine 2)";
   }
-
 }
 
 function parseDurationText(s: string | null | undefined): number | null {
