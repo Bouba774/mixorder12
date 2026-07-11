@@ -1067,6 +1067,14 @@ export function useDiscDJRobot() {
     }
   }, [log]);
 
+  useEffect(() => {
+    return () => {
+      runIdRef.current += 1;
+      pendingResolverRef.current?.(null);
+      pendingResolverRef.current = null;
+    };
+  }, []);
+
   const testPlaylistButton = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
     const settings = settingsRef.current;
     const point = settings.calibration.playlistButton;
