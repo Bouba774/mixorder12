@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import logo from "../assets/mixorder-logo.asset.json";
 
 function NotFoundComponent() {
   return (
@@ -72,26 +73,41 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
+
+
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1",
+      },
+      { name: "theme-color", content: "#232323" },
+      { title: "MixOrder — Studio DJ local" },
+      {
+        name: "description",
+        content:
+          "MixOrder transforme un dossier de tracks en espace de travail DJ mobile-first. 100% local, rapide, pensé pour la scène.",
+      },
+      { property: "og:title", content: "MixOrder — Studio DJ local" },
+      {
+        property: "og:description",
+        content:
+          "MixOrder transforme un dossier de tracks en espace de travail DJ mobile-first. 100% local, rapide, pensé pour la scène.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "MixOrder — Studio DJ local" },
+      { name: "twitter:description", content: "MixOrder transforme un dossier de tracks en espace de travail DJ mobile-first. 100% local, rapide, pensé pour la scène." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/50083a5c-b785-4221-9f81-3e9fdc467db2/id-preview-0581748d--9d1d921c-0721-4765-8fc3-797a72429371.lovable.app-1783560163293.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/50083a5c-b785-4221-9f81-3e9fdc467db2/id-preview-0581748d--9d1d921c-0721-4765-8fc3-797a72429371.lovable.app-1783560163293.png" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: "/__l5e/assets-v1/140a7754-7650-4386-abed-282bd82971f7/mixorder-logo.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: logo.url },
     ],
   }),
   shellComponent: RootShell,
@@ -102,7 +118,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="fr" className="dark">
       <head>
         <HeadContent />
       </head>
