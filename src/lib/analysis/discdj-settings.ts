@@ -264,7 +264,7 @@ function normalizeCalibration(input: Partial<DiscDJCalibration> | undefined): Di
     bpmDeck2: normalizeRect(input?.bpmDeck2),
     playlistButton: normalizePoint(input?.playlistButton),
     backButton: normalizePoint(input?.backButton),
-    playlistSelectedRow: normalizeRect(input?.playlistSelectedRow),
+
     savedAt: typeof input?.savedAt === "number" ? input.savedAt : null,
     timestamps:
       input?.timestamps && typeof input.timestamps === "object"
