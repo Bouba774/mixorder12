@@ -1465,6 +1465,60 @@ function sleep(ms: number) {
 }
 
 /**
+ * Ensure DiscDJ owns the foreground before the next action. If not, wait a
+ * few seconds, then re-open. The robot never asks the user to switch back
+ * manually — that would break the whole unattended promise.
+ */
+async function ensureDiscDJForeground(
+  bridge: DiscDJBridge,
+  log: (level: RobotLogLevel, message: string) => void,
+): Promise<void> {
+  try {
+    const status = await bridge.isReady();
+    if (status.foreground !== false) return;
+  } catch { /* fall through to reopen */ }
+  log("warning", "DiscDJ n'est plus au premier plan — réouverture automatique.");
+  await sleep(1500);
+  try { await bridge.openApp(); } catch { /* ignore — next OCR will retry */ }
+  await sleep(1200);
+}
+
+/**
+ * Single OCR pass on the calibrated BPM zone. Returns the BPM if the
+ * reading is plausible (40..240), otherwise `null`. No votes, no quorums.
+ */
+async function readBpmOnce(
+  bridge: DiscDJBridge,
+  deck: DeckId,
+  bpmZone: CalibrationRect,
+  settings: DiscDJRobotSettings,
+): Promise<number | null> {
+  await sleep(Math.max(200, settings.waitBeforeReadMs));
+  try {
+    const r = await bridge.readBpm(deck, { bpmZone });
+    if (isPlausibleBpm(r.bpm)) return Math.round(r.bpm);
+  } catch { /* handled by caller retry */ }
+  return null;
+}
+
+/**
+ * Tap the Back button and wait for the main screen to settle. Best-effort
+ * — a failed tap is recoverable because `ensureDiscDJForeground` is called
+ * before the next action anyway.
+ */
+async function returnToMain(
+  bridge: DiscDJBridge,
+  deck: DeckId,
+  backBtn: CalibrationPoint,
+  settings: DiscDJRobotSettings,
+): Promise<void> {
+  try {
+    await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
+  } catch { /* ignore, we'll re-check foreground next step */ }
+  await sleep(settings.waitAfterBackMs);
+}
+
+/**
  * Deterministic OCR rect for the first (selected/blue) row of the DiscDJ
  * playlist. DiscDJ splits the playlist screen in half — deck 1 on the left,
  * deck 2 on the right — with the currently-loaded track pinned to the top
