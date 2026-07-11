@@ -8,14 +8,18 @@ import {
   type DiscDJReading,
 } from "./discdj-bridge";
 import {
+  CALIBRATION_SCREEN,
   getDeckCalibration,
   isDeckCalibrated,
   loadDiscDJSettings,
   saveDiscDJSettings,
   setCalibrationElement,
+  type CalibrationPoint,
+  type CalibrationRect,
   type CalibrationTarget,
   type DiscDJRobotSettings,
 } from "./discdj-settings";
+
 import {
   DURATION_TOLERANCE_SEC,
   findMatches,
