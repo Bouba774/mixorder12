@@ -586,137 +586,171 @@ export function useDiscDJRobot() {
           const stepStart = Date.now();
           const positionLabel = `${i + 1}/${ordered.length}`;
 
-          // Step 1 — main screen: read + vote BPM on the active deck.
-          setState((s) => ({
-            ...s,
-            phase: "reading",
-            currentIndex: i + 1,
-            currentReading: null,
-            currentTrack: null,
-          }));
-          if (i > startIdx && settings.minReadyDelayMs > 0) await sleep(settings.minReadyDelayMs);
-          if (runIdRef.current !== runId) return;
-
-          const voted = await readBpmWithVote(
-            bridge,
-            deck,
-            settings,
-            log,
-            positionLabel,
-            () => runIdRef.current === runId,
-          );
-          if (runIdRef.current !== runId) return;
-          const memorizedBpm = voted.bpm;
-          setState((s) => ({ ...s, currentReading: voted.reading }));
-
-          if (voted.reading.endOfPlaylist) {
-            log("success", "Fin de playlist DiscDJ détectée.");
-            break;
-          }
-
-          // Step 2 — main → playlist.
-          log("info", `[${positionLabel}] Ouverture de la playlist pour vérifier le nom du morceau chargé…`);
-          setState((s) => ({ ...s, phase: "advancing" }));
           try {
-            await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs });
-          } catch (e) {
-            log("error", `Clic Playlist échoué : ${describe(e)}`);
-          }
-          await sleep(settings.waitAfterPlaylistOpenMs);
-          if (runIdRef.current !== runId) return;
+            // Step 1 — main screen: read + vote BPM on the active deck.
+            setState((s) => ({
+              ...s,
+              phase: "reading",
+              currentIndex: i + 1,
+              currentReading: null,
+              currentTrack: null,
+            }));
+            if (i > startIdx && settings.minReadyDelayMs > 0) await sleep(settings.minReadyDelayMs);
+            if (runIdRef.current !== runId) return;
 
-          // Step 3 — OCR the first (always-blue) playlist row and match.
-          const nameResult = await readNameWithRetries(
-            bridge,
-            deck,
-            rowZone,
-            maxOcr,
-            ordered,
-            threshold,
-            log,
-            positionLabel,
-            () => runIdRef.current === runId,
-          );
-          if (runIdRef.current !== runId) return;
+            const voted = await readBpmWithVote(
+              bridge,
+              deck,
+              settings,
+              log,
+              positionLabel,
+              () => runIdRef.current === runId,
+            );
+            if (runIdRef.current !== runId) return;
+            const memorizedBpm = voted.bpm;
+            setState((s) => ({ ...s, currentReading: voted.reading }));
 
-          const ocrName = nameResult.ocrName;
-          const match = nameResult.match;
-          const chosen = match.confident ? match.best!.item : null;
+            if (voted.reading.endOfPlaylist) {
+              log("success", "Fin de playlist DiscDJ détectée.");
+              break;
+            }
 
-          if (chosen && memorizedBpm != null) {
-            setTrackAnalysis(chosen.id, { bpm: memorizedBpm }, "discdj-auto");
-            processedRef.current.add(chosen.id);
-            foundBpms.push({
-              index: i + 1,
-              name: chosen.name,
-              bpm: memorizedBpm,
-              ocrName: ocrName || undefined,
-              score: match.best?.score,
-            });
-            if (settings.autosaveEachStep) {
+            // Step 2 — main → playlist.
+            log("info", `[${positionLabel}] Ouverture de la playlist pour vérifier le nom du morceau chargé…`);
+            setState((s) => ({ ...s, phase: "advancing" }));
+            try {
+              await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs });
+            } catch (e) {
+              log("warning", `[${positionLabel}] Clic Playlist échoué (${describe(e)}) — nouvelle tentative.`);
+              await sleep(400);
+              try { await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs }); } catch { /* ignore */ }
+            }
+            await sleep(settings.waitAfterPlaylistOpenMs);
+            if (runIdRef.current !== runId) return;
+
+            // Step 3 — OCR the first (always-blue) playlist row and match.
+            const nameResult = await readNameWithRetries(
+              bridge,
+              deck,
+              rowZone,
+              maxOcr,
+              ordered,
+              threshold,
+              log,
+              positionLabel,
+              () => runIdRef.current === runId,
+            );
+            if (runIdRef.current !== runId) return;
+
+            const ocrName = nameResult.ocrName;
+            const match = nameResult.match;
+            const chosen = match.confident ? match.best!.item : null;
+
+            if (chosen && memorizedBpm != null) {
+              setTrackAnalysis(chosen.id, { bpm: memorizedBpm }, "discdj-auto");
+              processedRef.current.add(chosen.id);
+              foundBpms.push({
+                index: i + 1,
+                name: chosen.name,
+                bpm: memorizedBpm,
+                ocrName: ocrName || undefined,
+                score: match.best?.score,
+              });
+              if (settings.autosaveEachStep) {
+                snapshot = markRun(
+                  snapshot ?? { v: 1, name: p.name, tracks: {} },
+                  p.name,
+                  { sourceId: "discdj-auto", startedAt: runStartedAt, lastPath: chosen.path },
+                );
+                if (ocrName) snapshot = rememberAlias(snapshot, p.name, normalizeTitle(ocrName), chosen.path);
+                saveSnapshot(fingerprint, snapshot);
+              }
+              log(
+                "success",
+                `[${positionLabel}] BPM=${memorizedBpm} · OCR="${ocrName}" → « ${chosen.name} » (score ${(match.best!.score * 100).toFixed(0)}%) ✓ enregistré.`,
+              );
+              setState((s) => ({ ...s, currentTrack: chosen, doneInRun: processedRef.current.size }));
+            } else {
+              const reason = memorizedBpm == null
+                ? "BPM illisible après toutes les tentatives — marqué à réanalyser."
+                : !ocrName
+                  ? "OCR nom vide"
+                  : `score ${(match.best?.score ?? 0).toFixed(2)} < ${threshold.toFixed(2)}${match.runnerUp ? ` (2e ${(match.runnerUp.score).toFixed(2)})` : ""}`;
+              toVerify.push({
+                index: i + 1,
+                ocrName: ocrName || "",
+                bestGuess: match.best?.item.name,
+                score: match.best?.score ?? 0,
+                bpm: memorizedBpm,
+              });
+              log(
+                "warning",
+                `[${positionLabel}] BPM=${memorizedBpm ?? "?"} · OCR="${ocrName || "?"}" → À réanalyser (${reason}). BPM non enregistré.`,
+              );
+              setState((s) => ({ ...s, needsRetryCount: s.needsRetryCount + 1 }));
+            }
+
+            // Step 4 — playlist → main.
+            setState((s) => ({ ...s, phase: "advancing" }));
+            try {
+              await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
+            } catch (e) {
+              log("warning", `[${positionLabel}] Clic Retour échoué (${describe(e)}) — nouvelle tentative.`);
+              await sleep(400);
+              try { await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs }); } catch { /* ignore */ }
+            }
+            await sleep(settings.waitAfterBackMs);
+            if (runIdRef.current !== runId) return;
+
+            // Save progress marker (resume-safe) even when the current step
+            // couldn't attribute a BPM — we still moved past this position.
+            snapshot = markRun(
+              snapshot ?? { v: 1, name: p.name, tracks: {} },
+              p.name,
+              { sourceId: "discdj-auto", startedAt: runStartedAt, lastPath: ordered[i].path },
+            );
+            if (settings.autosaveEachStep) saveSnapshot(fingerprint, snapshot);
+
+            // ETA rolling.
+            stepStartedAt.push(Date.now() - stepStart);
+            const recent = stepStartedAt.slice(-5);
+            const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+            const remaining = ordered.length - (i + 1);
+            setState((s) => ({ ...s, etaMsRemaining: remaining > 0 ? Math.round(avg * remaining) : 0 }));
+
+            if (i + 1 >= ordered.length) break;
+
+            // Step 5 — main screen: Next → next track.
+            try {
+              await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
+            } catch (e) {
+              log("warning", `[${positionLabel}] Clic Next échoué (${describe(e)}) — nouvelle tentative.`);
+              await sleep(500);
+              try {
+                await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
+              } catch (e2) {
+                log("error", `[${positionLabel}] Second clic Next échoué (${describe(e2)}) — le morceau suivant est peut-être décalé, la boucle continue.`);
+              }
+            }
+            await sleep(settings.waitAfterClickMs);
+            if (runIdRef.current !== runId) return;
+          } catch (loopErr) {
+            // Any unexpected exception inside a step must NEVER stop the
+            // full analysis. Persist progress, log, and move on.
+            log("error", `[${positionLabel}] Erreur inattendue : ${describe(loopErr)} — reprise automatique au morceau suivant.`);
+            setState((s) => ({ ...s, needsRetryCount: s.needsRetryCount + 1, lastError: describe(loopErr) }));
+            try {
               snapshot = markRun(
                 snapshot ?? { v: 1, name: p.name, tracks: {} },
                 p.name,
-                { sourceId: "discdj-auto", startedAt: runStartedAt, lastPath: chosen.path },
+                { sourceId: "discdj-auto", startedAt: runStartedAt, lastPath: ordered[i].path },
               );
-              if (ocrName) snapshot = rememberAlias(snapshot, p.name, normalizeTitle(ocrName), chosen.path);
-              saveSnapshot(fingerprint, snapshot);
-            }
-            log(
-              "success",
-              `[${positionLabel}] BPM=${memorizedBpm} · OCR="${ocrName}" → « ${chosen.name} » (score ${(match.best!.score * 100).toFixed(0)}%) ✓ enregistré.`,
-            );
-            setState((s) => ({ ...s, currentTrack: chosen, doneInRun: processedRef.current.size }));
-          } else {
-            const reason = memorizedBpm == null
-              ? "BPM illisible"
-              : !ocrName
-                ? "OCR nom vide"
-                : `score ${(match.best?.score ?? 0).toFixed(2)} < ${threshold.toFixed(2)}${match.runnerUp ? ` (2e ${(match.runnerUp.score).toFixed(2)})` : ""}`;
-            toVerify.push({
-              index: i + 1,
-              ocrName: ocrName || "",
-              bestGuess: match.best?.item.name,
-              score: match.best?.score ?? 0,
-              bpm: memorizedBpm,
-            });
-            log(
-              "warning",
-              `[${positionLabel}] BPM=${memorizedBpm ?? "?"} · OCR="${ocrName || "?"}" → À vérifier (${reason}). BPM non enregistré.`,
-            );
-            setState((s) => ({ ...s, needsRetryCount: s.needsRetryCount + 1 }));
+              if (settings.autosaveEachStep) saveSnapshot(fingerprint, snapshot);
+            } catch { /* ignore snapshot save errors */ }
+            await sleep(600);
           }
-
-          // Step 4 — playlist → main.
-          setState((s) => ({ ...s, phase: "advancing" }));
-          try {
-            await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
-          } catch (e) {
-            log("error", `Clic Retour échoué : ${describe(e)}`);
-          }
-          await sleep(settings.waitAfterBackMs);
-          if (runIdRef.current !== runId) return;
-
-          // ETA rolling.
-          stepStartedAt.push(Date.now() - stepStart);
-          const recent = stepStartedAt.slice(-5);
-          const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
-          const remaining = ordered.length - (i + 1);
-          setState((s) => ({ ...s, etaMsRemaining: remaining > 0 ? Math.round(avg * remaining) : 0 }));
-
-          if (i + 1 >= ordered.length) break;
-
-          // Step 5 — main screen: Next → next track.
-          try {
-            await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
-          } catch (e) {
-            log("error", `Clic Next échoué : ${describe(e)}`);
-            setState((s) => ({ ...s, phase: "error", errorMessage: describe(e) }));
-            return;
-          }
-          await sleep(settings.waitAfterClickMs);
-          if (runIdRef.current !== runId) return;
         }
+
 
         if (snapshot) {
           snapshot = markRun(snapshot, p.name, undefined);
@@ -869,13 +903,19 @@ export function useDiscDJRobot() {
             await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
           } catch (e) {
             const message = describe(e);
-            log("error", `Clic Next échoué : ${message}`);
-            setState((s) => ({ ...s, phase: "error", errorMessage: message, lastError: message }));
-            return;
+            log("warning", `Clic Next échoué (${message}) — nouvelle tentative après une courte pause.`);
+            await sleep(600);
+            try {
+              await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
+            } catch (e2) {
+              log("error", `Second clic Next échoué (${describe(e2)}) — la boucle continue au morceau suivant.`);
+              setState((s) => ({ ...s, lastError: describe(e2) }));
+            }
           }
           await sleep(settings.waitAfterClickMs);
           if (runIdRef.current !== runId) return;
         }
+
 
         // Clear resume marker on clean completion.
         if (snapshot) {
@@ -1253,15 +1293,22 @@ async function readBpmWithVote(
   stillRunning: () => boolean,
 ): Promise<{ bpm: number | null; reading: DiscDJReading; attempts: number; voteCount: number }> {
   const votes = new Map<number, number>();
+  const rawReadings: number[] = [];
   let lastReading: DiscDJReading = emptyReading();
-  const max = Math.max(2, settings.bpmMaxAttempts);
+  const max = Math.max(3, settings.bpmMaxAttempts);
   const quorum = Math.max(2, settings.bpmValidVoteCount);
+
+  const registerVote = (v: number, weight: number) => {
+    votes.set(v, (votes.get(v) ?? 0) + weight);
+  };
+
   for (let attempt = 1; attempt <= max; attempt++) {
     if (!stillRunning()) break;
     try {
       lastReading = await readSmartDeck(bridge, deck, settings, {}, log);
     } catch (e) {
-      log("warning", `Morceau ${positionLabel} : tentative ${attempt}/${max} échouée (${describe(e)}).`);
+      log("warning", `[${positionLabel}] tentative BPM ${attempt}/${max} en erreur (${describe(e)}) — nouvelle tentative.`);
+      await sleep(Math.max(250, settings.waitBeforeReadMs));
       continue;
     }
     if (lastReading.endOfPlaylist) {
@@ -1269,32 +1316,61 @@ async function readBpmWithVote(
     }
     if (isPlausibleBpm(lastReading.bpm)) {
       const rounded = Math.round(lastReading.bpm);
-      const next = (votes.get(rounded) ?? 0) + 1;
-      votes.set(rounded, next);
-      log("info", `Morceau ${positionLabel} : lecture ${attempt}/${max} → ${lastReading.bpm} (vote ${next}/${quorum} pour ${rounded}).`);
-      if (next >= quorum) {
-        return { bpm: rounded, reading: lastReading, attempts: attempt, voteCount: next };
+      rawReadings.push(rounded);
+      // Base weight = 1. Favor 3-digit BPMs (100..240) which is where the
+      // "150 read as 50" bug happens — an OCR pass that drops the leading
+      // digit shouldn't outweigh two passes that agree on the full number.
+      const weight = rounded >= 100 ? 2 : 1;
+      registerVote(rounded, weight);
+      log(
+        "info",
+        `[${positionLabel}] BPM lecture ${attempt}/${max} → ${rounded} (poids ${weight} · quorum ${quorum}).`,
+      );
+
+      // Heuristic "lost leading digit": if we already saw a 3-digit reading
+      // and this one is 2-digit with the SAME last two digits, treat it as
+      // the same 3-digit value (e.g. 150 vs 50 → count as 150).
+      if (rounded < 100) {
+        for (const seen of rawReadings) {
+          if (seen >= 100 && seen % 100 === rounded) {
+            registerVote(seen, 1);
+            log("info", `[${positionLabel}] hypothèse chiffre perdu : ${rounded} interprété comme ${seen}.`);
+            break;
+          }
+        }
+      }
+
+      const cur = votes.get(rounded) ?? 0;
+      if (cur >= quorum) {
+        log("success", `[${positionLabel}] BPM validé par vote : ${rounded} (score ${cur}).`);
+        return { bpm: rounded, reading: lastReading, attempts: attempt, voteCount: cur };
       }
     } else {
-      log("info", `Morceau ${positionLabel} : lecture ${attempt}/${max} illisible, nouvelle tentative…`);
+      log("info", `[${positionLabel}] BPM lecture ${attempt}/${max} illisible — nouvelle tentative avec prétraitement différent.`);
     }
-    // Small backoff so DiscDJ has time to refresh the BPM display.
-    await sleep(Math.max(200, Math.round(settings.waitBeforeReadMs / 2)));
+    // Backoff: slightly longer each attempt to let DiscDJ stabilize.
+    await sleep(Math.max(220, Math.round(settings.waitBeforeReadMs / 2)) + attempt * 80);
   }
-  // No quorum — fall back to the most frequent value if it appears ≥ 2×.
+
+  // No quorum — pick the value with the best weighted score, provided it
+  // has at least 2 supporting points OR is the only plausible one.
   let bestVal: number | null = null;
-  let bestCount = 0;
-  for (const [val, count] of votes.entries()) {
-    if (count > bestCount) {
+  let bestScore = 0;
+  const allValues: string[] = [];
+  for (const [val, score] of votes.entries()) {
+    allValues.push(`${val}×${score}`);
+    if (score > bestScore || (score === bestScore && bestVal != null && val > bestVal)) {
       bestVal = val;
-      bestCount = count;
+      bestScore = score;
     }
   }
-  if (bestVal != null && bestCount >= 2) {
-    return { bpm: bestVal, reading: lastReading, attempts: max, voteCount: bestCount };
+  log("info", `[${positionLabel}] Fin du vote BPM. Candidats : {${allValues.join(", ") || "aucun"}}. Retenu : ${bestVal ?? "aucun"}.`);
+  if (bestVal != null && bestScore >= 2) {
+    return { bpm: bestVal, reading: lastReading, attempts: max, voteCount: bestScore };
   }
-  return { bpm: null, reading: lastReading, attempts: max, voteCount: bestCount };
+  return { bpm: null, reading: lastReading, attempts: max, voteCount: bestScore };
 }
+
 
 async function readSmartDeck(
   bridge: DiscDJBridge,

@@ -341,35 +341,36 @@ public class DiscDJAccessibilityService extends AccessibilityService {
                 Bitmap cropped = Bitmap.createBitmap(full, crop.left, crop.top, crop.width(), crop.height());
                 OcrResult result = baseResult(displayCropRect, expectedPackage);
                 result.fullScreenshotDataUrl = bitmapDataUrl(full, Bitmap.CompressFormat.JPEG, 45);
-                Bitmap ocrInput = prepareForOcr(cropped);
                 result.croppedDataUrl = bitmapDataUrl(cropped, Bitmap.CompressFormat.PNG, 100);
-                result.ocrInputDataUrl = bitmapDataUrl(ocrInput, Bitmap.CompressFormat.PNG, 100);
 
-                TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-                recognizer.process(InputImage.fromBitmap(ocrInput, 0))
-                        .addOnSuccessListener(text -> {
-                            List<String> candidates = extractOcrTexts(text);
-                            result.zoneTexts.addAll(candidates);
-                            result.raw = join(candidates);
-                            if (containsBadSourceText(result.raw)) {
-                                result.sourceOk = false;
-                                result.parseReason = "Mauvaise source d'image capturée : le texte OCR contient des éléments de MixOrder ou d'un overlay.";
-                            } else {
-                                result.bpm = parseBestBpm(candidates);
-                                if (result.bpm == null) {
-                                    result.parseReason = result.raw == null || result.raw.isEmpty()
-                                            ? "OCR vide dans le rectangle BPM calibré."
-                                            : "Texte OCR brut lu, mais aucun BPM valide entre 40 et 240 n'a été retenu.";
+                // Build several OCR-ready variants of the crop (different
+                // preprocessing strategies) so text of any polarity — dark on
+                // light, white on blue "selected row", low contrast, noisy —
+                // has a real chance of being recognized. All variants are
+                // OCR'd and their outputs merged, then voted on.
+                final List<Bitmap> variants = prepareOcrVariants(cropped);
+                if (variants.isEmpty()) variants.add(cropped);
+                result.ocrInputDataUrl = bitmapDataUrl(variants.get(0), Bitmap.CompressFormat.PNG, 100);
+
+                final List<String> allTexts = new ArrayList<>();
+                final int[] remaining = new int[] { variants.size() };
+                for (int idx = 0; idx < variants.size(); idx++) {
+                    TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+                    recognizer.process(InputImage.fromBitmap(variants.get(idx), 0))
+                            .addOnSuccessListener(text -> {
+                                synchronized (allTexts) { allTexts.addAll(extractOcrTexts(text)); }
+                                recognizer.close();
+                                synchronized (remaining) {
+                                    if (--remaining[0] == 0) finalizeOcr(result, allTexts, cb);
                                 }
-                            }
-                            recognizer.close();
-                            cb.onResult(result);
-                        })
-                        .addOnFailureListener(e -> {
-                            result.parseReason = "OCR impossible : " + e.getMessage();
-                            recognizer.close();
-                            cb.onResult(result);
-                        });
+                            })
+                            .addOnFailureListener(e -> {
+                                recognizer.close();
+                                synchronized (remaining) {
+                                    if (--remaining[0] == 0) finalizeOcr(result, allTexts, cb);
+                                }
+                            });
+                }
             }
 
             @Override
@@ -384,6 +385,30 @@ public class DiscDJAccessibilityService extends AccessibilityService {
             r.parseReason = "Capture DiscDJ impossible : " + e.getMessage();
             cb.onResult(r);
         }
+    }
+
+    private void finalizeOcr(OcrResult result, List<String> allTexts, OcrCallback cb) {
+        List<String> uniq = new ArrayList<>();
+        for (String s : allTexts) {
+            if (s == null) continue;
+            String t = s.trim();
+            if (t.isEmpty()) continue;
+            if (!uniq.contains(t)) uniq.add(t);
+        }
+        result.zoneTexts.addAll(uniq);
+        result.raw = join(uniq);
+        if (containsBadSourceText(result.raw)) {
+            result.sourceOk = false;
+            result.parseReason = "Mauvaise source d'image capturée : le texte OCR contient des éléments de MixOrder ou d'un overlay.";
+        } else {
+            result.bpm = parseBestBpm(uniq);
+            if (result.bpm == null) {
+                result.parseReason = result.raw == null || result.raw.isEmpty()
+                        ? "OCR vide dans le rectangle BPM calibré (toutes variantes de prétraitement)."
+                        : "Texte OCR lu sur " + uniq.size() + " variantes, mais aucun BPM valide entre 40 et 240.";
+            }
+        }
+        cb.onResult(result);
     }
 
     private OcrResult baseResult(Rect crop, String expectedPackage) {
@@ -439,57 +464,137 @@ public class DiscDJAccessibilityService extends AccessibilityService {
         return "data:" + mime + ";base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
     }
 
-    /** Upscale + high-contrast binarization for small stylized BPM displays. */
-    private static Bitmap prepareForOcr(Bitmap source) {
-        if (source == null) return null;
+    /**
+     * Build several OCR-ready variants of a source bitmap. The OCR engine is
+     * fed each variant independently and their outputs merged. This is what
+     * makes white-on-blue playlist rows (and low-contrast BPM digits) actually
+     * readable without asking the user to recalibrate.
+     *
+     * Variants produced, in order of usual usefulness:
+     *  1. Upscaled + adaptive binarization (dark text on light bg)
+     *  2. Upscaled + adaptive binarization INVERTED (light text on dark bg —
+     *     the white-on-blue "selected row" case)
+     *  3. Upscaled + contrast/sharpen only (no threshold — helps ML Kit on
+     *     colored backgrounds where binarization eats the strokes)
+     *  4. Upscaled grayscale (baseline)
+     */
+    private static List<Bitmap> prepareOcrVariants(Bitmap source) {
+        List<Bitmap> out = new ArrayList<>();
+        if (source == null) return out;
         int scale = Math.max(2, Math.min(4, 1500 / Math.max(1, Math.max(source.getWidth(), source.getHeight()))));
         Bitmap scaled = Bitmap.createScaledBitmap(source, source.getWidth() * scale, source.getHeight() * scale, true);
         int w = scaled.getWidth();
         int h = scaled.getHeight();
         int[] pixels = new int[w * h];
         scaled.getPixels(pixels, 0, w, 0, 0, w, h);
-        long sum = 0;
         int[] lum = new int[pixels.length];
+        long sum = 0;
+        int min = 255, max = 0;
         for (int i = 0; i < pixels.length; i++) {
             int c = pixels[i];
             int l = (int) (Color.red(c) * 0.299 + Color.green(c) * 0.587 + Color.blue(c) * 0.114);
-            lum[i] = l;
-            sum += l;
+            lum[i] = l; sum += l;
+            if (l < min) min = l;
+            if (l > max) max = l;
         }
         int avg = pixels.length > 0 ? (int) (sum / pixels.length) : 128;
         boolean brightTextOnDark = avg < 128;
         int margin = 18;
-        for (int i = 0; i < pixels.length; i++) {
+
+        // Variant 1 — adaptive binarization matched to detected polarity
+        out.add(binarize(pixels, lum, avg, margin, w, h, brightTextOnDark));
+        // Variant 2 — same but OPPOSITE polarity assumption (crucial for
+        // white-on-blue playlist rows when the average luminance is fooled
+        // by large bright background patches).
+        out.add(binarize(pixels, lum, avg, margin, w, h, !brightTextOnDark));
+        // Variant 3 — contrast + sharpen only, no threshold, output still
+        // grayscale-ish. Great for colored backgrounds where any hard
+        // threshold destroys thin strokes.
+        out.add(contrastStretch(pixels, lum, min, max, w, h));
+        // Variant 4 — inverted grayscale (helps when text is light on a
+        // mid-tone background and neither binarization catches it).
+        out.add(invertedGrayscale(pixels, lum, w, h));
+        return out;
+    }
+
+    private static Bitmap binarize(int[] src, int[] lum, int avg, int margin, int w, int h, boolean brightTextOnDark) {
+        int[] px = new int[src.length];
+        for (int i = 0; i < src.length; i++) {
             boolean textPixel = brightTextOnDark ? lum[i] > avg + margin : lum[i] < avg - margin;
-            pixels[i] = textPixel ? Color.BLACK : Color.WHITE;
+            px[i] = textPixel ? Color.BLACK : Color.WHITE;
         }
         Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-        out.setPixels(pixels, 0, w, 0, 0, w, h);
+        out.setPixels(px, 0, w, 0, 0, w, h);
+        return out;
+    }
+
+    private static Bitmap contrastStretch(int[] src, int[] lum, int min, int max, int w, int h) {
+        int range = Math.max(1, max - min);
+        int[] px = new int[src.length];
+        for (int i = 0; i < src.length; i++) {
+            int v = Math.max(0, Math.min(255, ((lum[i] - min) * 255) / range));
+            px[i] = Color.rgb(v, v, v);
+        }
+        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        out.setPixels(px, 0, w, 0, 0, w, h);
+        return out;
+    }
+
+    private static Bitmap invertedGrayscale(int[] src, int[] lum, int w, int h) {
+        int[] px = new int[src.length];
+        for (int i = 0; i < src.length; i++) {
+            int v = 255 - lum[i];
+            px[i] = Color.rgb(v, v, v);
+        }
+        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        out.setPixels(px, 0, w, 0, 0, w, h);
         return out;
     }
 
     public static Double parseBestBpm(List<String> texts) {
-        if (texts != null) {
-            for (String t : texts) {
-                Matcher m = BPM_LABELED_PATTERN.matcher(t == null ? "" : t);
-                if (m.find()) {
-                    Double v = tryParseBpm(m.group(1));
-                    if (v != null) return v;
+        if (texts == null || texts.isEmpty()) return null;
+        // Vote-based parsing: collect every plausible BPM candidate from
+        // both labelled ("BPM: 150") and loose matches, rank them, and
+        // prefer 3-digit values when they appear at least as often as the
+        // 2-digit ones. This fixes the "150 read as 50" regression where a
+        // leading digit gets dropped by one OCR variant.
+        java.util.Map<Integer, Integer> votes = new java.util.HashMap<>();
+        for (String t : texts) {
+            if (t == null) continue;
+            Matcher lm = BPM_LABELED_PATTERN.matcher(t);
+            while (lm.find()) {
+                Double v = tryParseBpm(lm.group(1));
+                if (v != null) {
+                    int k = (int) Math.round(v);
+                    votes.merge(k, 3, Integer::sum); // labelled → heavy weight
                 }
             }
-            for (String t : texts) {
-                if (t == null) continue;
-                Double v = parseBpm(t);
-                if (v != null && looksLikeBpmText(t)) return v;
+            Matcher m2 = BPM_LOOSE_PATTERN.matcher(t);
+            while (m2.find()) {
+                Double v = tryParseBpm(m2.group(1));
+                if (v != null) {
+                    int k = (int) Math.round(v);
+                    int weight = looksLikeBpmText(t) ? 2 : 1;
+                    if (k >= 100) weight += 1; // favor 3-digit BPMs
+                    votes.merge(k, weight, Integer::sum);
+                }
             }
         }
-        return null;
+        if (votes.isEmpty()) return null;
+        int bestKey = -1;
+        int bestScore = -1;
+        for (java.util.Map.Entry<Integer, Integer> e : votes.entrySet()) {
+            int score = e.getValue();
+            int k = e.getKey();
+            if (score > bestScore || (score == bestScore && k > bestKey)) {
+                bestScore = score;
+                bestKey = k;
+            }
+        }
+        return bestKey >= 40 && bestKey <= 240 ? (double) bestKey : null;
     }
 
-    private static boolean looksLikeBpmText(String t) {
-        String compact = t == null ? "" : t.trim().replaceAll("\\s+", "");
-        return compact.toUpperCase(Locale.ROOT).contains("BPM") || compact.matches("^\\d{2,3}([.,]\\d+)?$");
-    }
+
 
     public static Double parseBpm(String raw) {
         if (raw == null) return null;
