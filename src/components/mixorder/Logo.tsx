@@ -1,5 +1,9 @@
 import logo from "@/assets/mixorder-logo.asset.json";
 
+// Single source of truth for the MixOrder brand mark.
+export const LOGO_URL = logo.url;
+export const LOGO_FALLBACK_URL = "/favicon.png";
+
 interface LogoProps {
   size?: number;
   className?: string;
@@ -19,11 +23,21 @@ export function Logo({ size = 40, className = "", glow = false }: LogoProps) {
         />
       )}
       <img
-        src={logo.url}
+        src={LOGO_URL}
         alt="MixOrder"
         width={size}
         height={size}
-        className="rounded-[22%] shadow-elevated"
+        loading="eager"
+        decoding="async"
+        draggable={false}
+        onError={(e) => {
+          const img = e.currentTarget;
+          if (img.dataset.fallback !== "1") {
+            img.dataset.fallback = "1";
+            img.src = LOGO_FALLBACK_URL;
+          }
+        }}
+        className="rounded-[22%] shadow-elevated object-contain"
         style={{ width: size, height: size }}
       />
     </div>
