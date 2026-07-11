@@ -122,23 +122,38 @@ export interface NameMatchResult<T> {
 export function findBestMatch<T>(
   ocrName: string,
   items: T[],
-  getName: (item: T) => string,
+  getName: (item: T) => string | string[],
   options: { threshold?: number; ambiguityGap?: number } = {},
 ): NameMatchResult<T> {
-  const threshold = options.threshold ?? 0.72;
+  const threshold = options.threshold ?? 0.55;
   const gap = options.ambiguityGap ?? 0.05;
   const normOcr = normalizeTrackName(ocrName);
   if (!normOcr || items.length === 0) {
     return { best: null, runnerUp: null, confident: false, ranked: [] };
   }
   const ranked = items
-    .map((item) => ({ item, score: similarity(normOcr, getName(item)) }))
+    .map((item) => {
+      const names = getName(item);
+      const list = Array.isArray(names) ? names : [names];
+      let best = 0;
+      for (const n of list) {
+        const s = similarity(normOcr, n);
+        if (s > best) best = s;
+      }
+      return { item, score: best };
+    })
     .sort((a, b) => b.score - a.score);
   const best = ranked[0] ?? null;
   const runnerUp = ranked[1] ?? null;
+  // Two acceptance paths, both require the runner-up gap to avoid ties:
+  //  1. Clean confident match: best.score ≥ threshold.
+  //  2. Dominance rescue: OCR often only captures part of a scrolling title,
+  //     so a moderate score (≥ 0.42) that clearly beats the field (gap ≥ 0.15)
+  //     is still a reliable pick — much better than "no match".
+  const gapOk = !runnerUp || best!.score - runnerUp.score >= gap;
+  const domGapOk = !runnerUp || best!.score - runnerUp.score >= 0.15;
   const confident =
     !!best &&
-    best.score >= threshold &&
-    (!runnerUp || best.score - runnerUp.score >= gap);
+    ((best.score >= threshold && gapOk) || (best.score >= 0.42 && domGapOk));
   return { best, runnerUp, confident, ranked };
 }
