@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ionic-team/capacitor-assets/main/assets/schema.json",
+  "icon": {
+    "source": "resources/icon.png",
+    "background": "#232323"
+  },
+  "splash": {
+    "source": "resources/splash.png",
+    "background": "#232323"
+  },
+  "adaptiveIcon": {
+    "foreground": "resources/icon-foreground.png",
+    "background": "#232323"
+  }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mixorder_discdj_robot_service_description">MixOrder — lecture des BPM affichés dans DiscDJ et tap automatique sur « Suivant ».</string>
+    <string name="mixorder_discdj_notif_channel">Analyse DiscDJ</string>
+    <string name="mixorder_discdj_notif_channel_desc">Progression de l\'analyse BPM en arrière-plan.</string>
+</resources>
