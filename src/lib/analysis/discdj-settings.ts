@@ -118,7 +118,7 @@ export const DEFAULT_DISCDJ_SETTINGS: DiscDJRobotSettings = {
     bpmDeck2: null,
     playlistButton: null,
     backButton: null,
-    playlistSelectedRow: null,
+
     savedAt: null,
     timestamps: {},
   },
