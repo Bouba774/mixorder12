@@ -554,13 +554,21 @@ export function useDiscDJRobot() {
       if (settings.analysisMode === "autosync-name") {
         const playlistBtn = settings.calibration.playlistButton;
         const backBtn = settings.calibration.backButton;
-        const rowZone = settings.calibration.playlistSelectedRow;
-        if (!playlistBtn || !backBtn || !rowZone) {
-          const msg = "Calibration AutoSync incomplète : boutons Playlist / Retour et zone de la ligne sélectionnée requis.";
+        if (!playlistBtn || !backBtn) {
+          const msg =
+            "Calibration AutoSync incomplète : les boutons Playlist (écran principal) et Retour (écran playlist) doivent être calibrés.";
           log("error", msg);
           setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
           return;
         }
+
+        // The first playlist row is ALWAYS the track currently loaded on the
+        // deck (highlighted in blue by DiscDJ). Its position is fixed by the
+        // DiscDJ layout — deck 1 fills the left half, deck 2 the right half,
+        // and the selected row sits at the top just below the toolbar. We
+        // derive its OCR rect deterministically from the deck id so there is
+        // nothing to calibrate manually.
+        const rowZone: CalibrationRect = firstRowZoneFor(deck);
 
         const stepStartedAt: number[] = [];
         const runStartedAt = Date.now();
@@ -578,11 +586,25 @@ export function useDiscDJRobot() {
           const stepStart = Date.now();
           const positionLabel = `${i + 1}/${ordered.length}`;
 
-          // Step 1: read + vote BPM on the active deck.
-          setState((s) => ({ ...s, phase: "reading", currentIndex: i + 1, currentReading: null, currentTrack: null }));
+          // Step 1 — main screen: read + vote BPM on the active deck.
+          setState((s) => ({
+            ...s,
+            phase: "reading",
+            currentIndex: i + 1,
+            currentReading: null,
+            currentTrack: null,
+          }));
           if (i > startIdx && settings.minReadyDelayMs > 0) await sleep(settings.minReadyDelayMs);
           if (runIdRef.current !== runId) return;
-          const voted = await readBpmWithVote(bridge, deck, settings, log, positionLabel, () => runIdRef.current === runId);
+
+          const voted = await readBpmWithVote(
+            bridge,
+            deck,
+            settings,
+            log,
+            positionLabel,
+            () => runIdRef.current === runId,
+          );
           if (runIdRef.current !== runId) return;
           const memorizedBpm = voted.bpm;
           setState((s) => ({ ...s, currentReading: voted.reading }));
@@ -592,8 +614,8 @@ export function useDiscDJRobot() {
             break;
           }
 
-          // Step 2 + 3: open playlist, OCR selected row with retries.
-          log("info", `[${positionLabel}] Ouverture de la playlist pour vérifier le nom…`);
+          // Step 2 — main → playlist.
+          log("info", `[${positionLabel}] Ouverture de la playlist pour vérifier le nom du morceau chargé…`);
           setState((s) => ({ ...s, phase: "advancing" }));
           try {
             await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs });
@@ -603,7 +625,18 @@ export function useDiscDJRobot() {
           await sleep(settings.waitAfterPlaylistOpenMs);
           if (runIdRef.current !== runId) return;
 
-          const nameResult = await readNameWithRetries(bridge, deck, rowZone, maxOcr, ordered, threshold, log, positionLabel, () => runIdRef.current === runId);
+          // Step 3 — OCR the first (always-blue) playlist row and match.
+          const nameResult = await readNameWithRetries(
+            bridge,
+            deck,
+            rowZone,
+            maxOcr,
+            ordered,
+            threshold,
+            log,
+            positionLabel,
+            () => runIdRef.current === runId,
+          );
           if (runIdRef.current !== runId) return;
 
           const ocrName = nameResult.ocrName;
@@ -654,7 +687,7 @@ export function useDiscDJRobot() {
             setState((s) => ({ ...s, needsRetryCount: s.needsRetryCount + 1 }));
           }
 
-          // Step: back to main screen.
+          // Step 4 — playlist → main.
           setState((s) => ({ ...s, phase: "advancing" }));
           try {
             await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
@@ -673,7 +706,7 @@ export function useDiscDJRobot() {
 
           if (i + 1 >= ordered.length) break;
 
-          // Advance to next track.
+          // Step 5 — main screen: Next → next track.
           try {
             await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
           } catch (e) {
@@ -711,6 +744,7 @@ export function useDiscDJRobot() {
         }));
         return;
       }
+
 
 
 
