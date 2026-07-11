@@ -1067,13 +1067,98 @@ export function useDiscDJRobot() {
     }
   }, [log]);
 
-  useEffect(() => {
-    return () => {
-      runIdRef.current += 1;
-      pendingResolverRef.current?.(null);
-      pendingResolverRef.current = null;
-    };
-  }, []);
+  const testPlaylistButton = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
+    const settings = settingsRef.current;
+    const point = settings.calibration.playlistButton;
+    if (!point) return { ok: false, message: "Bouton Playlist non calibré." };
+    setState((s) => ({ ...s, phase: "testing" }));
+    try {
+      log("info", "Test bouton Playlist : ouverture de DiscDJ…");
+      await bridgeRef.current.openApp();
+      await sleep(settings.waitOnOpenMs);
+      await bridgeRef.current.tapNext(1, { point, pressDurationMs: settings.pressDurationMs });
+      await sleep(settings.waitAfterPlaylistOpenMs);
+      setState((s) => ({ ...s, phase: "idle" }));
+      const msg = "Clic Playlist envoyé — vérifie que l'écran playlist est bien affiché dans DiscDJ.";
+      log("success", msg);
+      return { ok: true, message: msg };
+    } catch (e) {
+      const message = describe(e);
+      log("error", `Test bouton Playlist échoué : ${message}`);
+      setState((s) => ({ ...s, phase: "error", errorMessage: message }));
+      return { ok: false, message };
+    }
+  }, [log]);
+
+  const testBackButton = useCallback(async (): Promise<{ ok: boolean; message: string }> => {
+    const settings = settingsRef.current;
+    const playlist = settings.calibration.playlistButton;
+    const back = settings.calibration.backButton;
+    if (!back) return { ok: false, message: "Bouton Retour non calibré." };
+    setState((s) => ({ ...s, phase: "testing" }));
+    try {
+      log("info", "Test bouton Retour : préparation depuis l'écran playlist…");
+      await bridgeRef.current.openApp();
+      await sleep(settings.waitOnOpenMs);
+      if (playlist) {
+        await bridgeRef.current.tapNext(1, { point: playlist, pressDurationMs: settings.pressDurationMs });
+        await sleep(settings.waitAfterPlaylistOpenMs);
+      }
+      await bridgeRef.current.tapNext(1, { point: back, pressDurationMs: settings.pressDurationMs });
+      await sleep(settings.waitAfterBackMs);
+      setState((s) => ({ ...s, phase: "idle" }));
+      const msg = "Clic Retour envoyé — vérifie que l'écran principal est bien affiché.";
+      log("success", msg);
+      return { ok: true, message: msg };
+    } catch (e) {
+      const message = describe(e);
+      log("error", `Test bouton Retour échoué : ${message}`);
+      setState((s) => ({ ...s, phase: "error", errorMessage: message }));
+      return { ok: false, message };
+    }
+  }, [log]);
+
+  const testNameZone = useCallback(
+    async (deck: DeckId): Promise<{ ok: boolean; raw: string; cleaned: string; message: string }> => {
+      const settings = settingsRef.current;
+      const zone = deck === 1 ? settings.calibration.nameZoneDeck1 : settings.calibration.nameZoneDeck2;
+      const playlist = settings.calibration.playlistButton;
+      const back = settings.calibration.backButton;
+      if (!zone) return { ok: false, raw: "", cleaned: "", message: `Zone nom du morceau platine ${deck} non calibrée.` };
+      if (!playlist) return { ok: false, raw: "", cleaned: "", message: "Bouton Playlist non calibré." };
+      setState((s) => ({ ...s, phase: "testing", deck }));
+      try {
+        log("info", `Test zone Nom platine ${deck} : ouverture playlist…`);
+        await bridgeRef.current.openApp();
+        await sleep(settings.waitOnOpenMs);
+        await bridgeRef.current.tapNext(deck, { point: playlist, pressDurationMs: settings.pressDurationMs });
+        await sleep(settings.waitAfterPlaylistOpenMs);
+        const { raw, cleaned } = await readAndCleanNameOnce(bridgeRef.current, deck, zone);
+        // Best-effort return to main so the user isn't stuck.
+        if (back) {
+          try {
+            await bridgeRef.current.tapNext(deck, { point: back, pressDurationMs: settings.pressDurationMs });
+            await sleep(settings.waitAfterBackMs);
+          } catch { /* ignore */ }
+        }
+        setState((s) => ({ ...s, phase: "idle" }));
+        if (cleaned) {
+          const msg = `OCR brut : « ${raw} » · nettoyé : « ${cleaned} »`;
+          log("success", `Test zone Nom platine ${deck} : ${msg}`);
+          return { ok: true, raw, cleaned, message: msg };
+        }
+        const msg = "Zone lue mais aucun texte détecté — élargis le rectangle ou recalibre.";
+        log("warning", `Test zone Nom platine ${deck} : ${msg}`);
+        return { ok: false, raw, cleaned, message: msg };
+      } catch (e) {
+        const message = describe(e);
+        log("error", `Test zone Nom platine ${deck} échoué : ${message}`);
+        setState((s) => ({ ...s, phase: "error", errorMessage: message }));
+        return { ok: false, raw: "", cleaned: "", message };
+      }
+    },
+    [log],
+  );
 
   return {
     state,
@@ -1091,6 +1176,9 @@ export function useDiscDJRobot() {
     supportsDirectCapture,
     testRead,
     testClick,
+    testPlaylistButton,
+    testBackButton,
+    testNameZone,
     openAccessibilitySettings,
   } as const;
 }
