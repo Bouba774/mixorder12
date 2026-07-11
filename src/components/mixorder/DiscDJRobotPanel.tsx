@@ -460,12 +460,16 @@ function CalibrationPanel({
   onSetElement: (target: CalibrationTarget, value: CalibrationPoint | CalibrationRect | null) => void;
   onTestRead: (deck: DeckId) => Promise<import("@/lib/analysis/discdj-bridge").DiscDJReading | null>;
   onTestClick: (deck: DeckId) => Promise<{ changed: boolean; message: string }>;
+  onTestPlaylist: () => Promise<{ ok: boolean; message: string }>;
+  onTestBack: () => Promise<{ ok: boolean; message: string }>;
+  onTestNameZone: (deck: DeckId) => Promise<{ ok: boolean; raw: string; cleaned: string; message: string }>;
 }) {
   const [method, setMethod] = useState<"direct" | "screenshot">("direct");
   const [busy, setBusy] = useState<CalibrationTarget | null>(null);
   const [shotTarget, setShotTarget] = useState<CalibrationTarget>("nextDeck1");
   const [testResult, setTestResult] = useState<Record<number, TestResult | null>>({});
   const [testing, setTesting] = useState<string | null>(null);
+  const [autoSyncTestResult, setAutoSyncTestResult] = useState<string | null>(null);
   const complete = isDiscDJCalibrationComplete(settings);
 
   const handleDirect = async (t: CalibrationTarget) => {
