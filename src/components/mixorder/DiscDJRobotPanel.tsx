@@ -452,6 +452,9 @@ function CalibrationPanel({
   onSetElement,
   onTestRead,
   onTestClick,
+  onTestPlaylist,
+  onTestBack,
+  onTestNameZone,
 }: {
   settings: DiscDJRobotSettings;
   supportsDirectCapture: boolean;
