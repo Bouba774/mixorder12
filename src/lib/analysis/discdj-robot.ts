@@ -629,7 +629,7 @@ export function useDiscDJRobot() {
             lastOcr = cleaned;
             if (!cleaned) {
               log("warning", `${progress} Nom illisible — retour et nouvelle tentative.`);
-              await returnToMain(bridge, deck, backBtn, settings);
+              await returnToMain(bridge, deck, backBtn!, settings);
               continue;
             }
 
@@ -637,7 +637,7 @@ export function useDiscDJRobot() {
             const match = findBestMatch<Track>(cleaned, ordered, (t) => t.name, { threshold });
             if (!match.confident || !match.best) {
               log("warning", `${progress} Aucun morceau MixOrder ne correspond à « ${cleaned} ».`);
-              await returnToMain(bridge, deck, backBtn, settings);
+              await returnToMain(bridge, deck, backBtn!, settings);
               continue;
             }
 
@@ -663,7 +663,7 @@ export function useDiscDJRobot() {
               doneInRun: processedRef.current.size,
             }));
 
-            await returnToMain(bridge, deck, backBtn, settings);
+            await returnToMain(bridge, deck, backBtn!, settings);
             break;
           }
 
@@ -683,7 +683,7 @@ export function useDiscDJRobot() {
             );
             saveSnapshot(fingerprint, snapshot);
             // Make sure we're back on main before tapping Next.
-            await returnToMain(bridge, deck, backBtn, settings);
+            await returnToMain(bridge, deck, backBtn!, settings);
           }
 
           if (i + 1 >= ordered.length) break;
