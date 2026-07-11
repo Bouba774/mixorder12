@@ -89,18 +89,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "This application creates an exact replica of an existing application, preserving all design, functionality, and user experiences.",
+          "Mix your music DiscDJ robot",
       },
       { property: "og:title", content: "MixOrder" },
       {
         property: "og:description",
         content:
-          "This application creates an exact replica of an existing application, preserving all design, functionality, and user experiences.",
+          "Mix your music DiscDJ robot",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "MixOrder" },
-      { name: "twitter:description", content: "This application creates an exact replica of an existing application, preserving all design, functionality, and user experiences." },
+      { name: "twitter:description", content: "Mix your music DiscDJ robot" },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/412ad346-002d-4215-b4c3-ebf0159160a8/id-preview-5a33a3bd--81d2570c-26c3-4ec4-bfe8-b05dd6b96243.lovable.app-1783774080022.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/412ad346-002d-4215-b4c3-ebf0159160a8/id-preview-5a33a3bd--81d2570c-26c3-4ec4-bfe8-b05dd6b96243.lovable.app-1783774080022.png" },
     ],
