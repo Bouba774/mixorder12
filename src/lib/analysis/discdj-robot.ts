@@ -1501,9 +1501,9 @@ async function ensureDiscDJForeground(
     if (status.foreground !== false) return;
   } catch { /* fall through to reopen */ }
   log("warning", "DiscDJ n'est plus au premier plan — réouverture automatique.");
-  await sleep(1500);
+  await bgSleep(bridge, 1500);
   try { await bridge.openApp(); } catch { /* ignore — next OCR will retry */ }
-  await sleep(1200);
+  await bgSleep(bridge, 1200);
 }
 
 /**
@@ -1516,7 +1516,7 @@ async function readBpmOnce(
   bpmZone: CalibrationRect,
   settings: DiscDJRobotSettings,
 ): Promise<number | null> {
-  await sleep(Math.max(200, settings.waitBeforeReadMs));
+  await bgSleep(bridge, Math.max(200, settings.waitBeforeReadMs));
   try {
     const r = await bridge.readBpm(deck, { bpmZone });
     if (isPlausibleBpm(r.bpm)) return Math.round(r.bpm);
@@ -1538,7 +1538,7 @@ async function returnToMain(
   try {
     await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
   } catch { /* ignore, we'll re-check foreground next step */ }
-  await sleep(settings.waitAfterBackMs);
+  await bgSleep(bridge, settings.waitAfterBackMs);
 }
 
 /**
