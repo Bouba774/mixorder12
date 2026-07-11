@@ -594,10 +594,7 @@ public class DiscDJAccessibilityService extends AccessibilityService {
         return bestKey >= 40 && bestKey <= 240 ? (double) bestKey : null;
     }
 
-    private static boolean looksLikeBpmText(String t) {
-        String compact = t == null ? "" : t.trim().replaceAll("\\s+", "");
-        return compact.toUpperCase(Locale.ROOT).contains("BPM") || compact.matches("^\\d{2,3}([.,]\\d+)?$");
-    }
+
 
     public static Double parseBpm(String raw) {
         if (raw == null) return null;
