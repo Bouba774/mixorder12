@@ -8,14 +8,18 @@ import {
   type DiscDJReading,
 } from "./discdj-bridge";
 import {
+  CALIBRATION_SCREEN,
   getDeckCalibration,
   isDeckCalibrated,
   loadDiscDJSettings,
   saveDiscDJSettings,
   setCalibrationElement,
+  type CalibrationPoint,
+  type CalibrationRect,
   type CalibrationTarget,
   type DiscDJRobotSettings,
 } from "./discdj-settings";
+
 import {
   DURATION_TOLERANCE_SEC,
   findMatches,
@@ -202,8 +206,19 @@ export function useDiscDJRobot() {
     },
     [],
   );
-
-  /** Interactive calibration: open DiscDJ, capture a tap/zone, persist it. */
+  /**
+   * Interactive calibration with **contextual navigation**.
+   *
+   * Each target lives on a specific DiscDJ screen (main or playlist).
+   * Before showing the capture overlay we make sure DiscDJ is on the right
+   * screen — otherwise the user is asked to touch a button that isn't even
+   * visible. When calibrating the Back button we auto-tap Playlist first.
+   *
+   * After capture we immediately re-tap the recorded position (testTap) so
+   * the coordinates that were saved are the coordinates that actually get
+   * clicked at runtime. No horizontal/vertical offset, no scaling — the
+   * point displayed, saved and clicked is strictly the same.
+   */
   const captureCalibration = useCallback(
     async (target: CalibrationTarget): Promise<boolean> => {
       const bridge = bridgeRef.current;
@@ -212,9 +227,37 @@ export function useDiscDJRobot() {
         return false;
       }
       try {
-        log("info", `Calibration « ${target} » : ouverture de DiscDJ…`);
+        const screen = CALIBRATION_SCREEN[target];
+        log("info", `Calibration « ${target} » (écran ${screen}) : ouverture de DiscDJ…`);
         await bridge.openApp();
-        await sleep(900);
+        await sleep(settingsRef.current.waitOnOpenMs);
+
+        // Contextual navigation — bring DiscDJ onto the screen where the
+        // target actually lives before asking the user to touch it.
+        if (screen === "playlist") {
+          const playlistBtn = settingsRef.current.calibration.playlistButton;
+          if (!playlistBtn) {
+            log(
+              "error",
+              "Calibre d'abord le bouton Playlist (écran principal) : impossible d'atteindre la playlist sans lui.",
+            );
+            return false;
+          }
+          log("info", "Ouverture de la playlist DiscDJ…");
+          await bridge.tapNext(1, { point: playlistBtn, pressDurationMs: settingsRef.current.pressDurationMs });
+          await sleep(settingsRef.current.waitAfterPlaylistOpenMs);
+        } else if (screen === "main") {
+          // If we happen to be on the playlist and we know how to get back, do it.
+          const backBtn = settingsRef.current.calibration.backButton;
+          if (backBtn) {
+            // Best-effort return to main. Harmless when we're already there.
+            try {
+              await bridge.tapNext(1, { point: backBtn, pressDurationMs: settingsRef.current.pressDurationMs });
+              await sleep(settingsRef.current.waitAfterBackMs);
+            } catch { /* ignore — we might already be on the main screen */ }
+          }
+        }
+
         const res = await bridge.captureCalibration(target);
         if (res.cancelled) {
           log("warning", "Calibration annulée.");
@@ -227,6 +270,23 @@ export function useDiscDJRobot() {
         }
         updateCalibrationElement(target, value);
         log("success", `Calibration enregistrée : ${target}.`);
+
+        // Automatic self-check: replay the exact recorded point/rect as a
+        // tap so any discrepancy between "recorded" and "clicked" is caught
+        // immediately. Skipped for zones (BPM rectangles — nothing to tap).
+        if (res.point) {
+          try {
+            log("info", "Vérification : clic de contrôle sur la position enregistrée…");
+            await bridge.tapNext(1, { point: res.point, pressDurationMs: settingsRef.current.pressDurationMs });
+            log(
+              "success",
+              `✅ Clic de contrôle effectué à x=${res.point.x.toFixed(3)} · y=${res.point.y.toFixed(3)}.`,
+            );
+          } catch (e) {
+            log("error", `⚠️ Clic de contrôle refusé (${describe(e)}) — recommence la calibration.`);
+            return false;
+          }
+        }
         return true;
       } catch (e) {
         log("error", `Calibration échouée : ${describe(e)}`);
@@ -238,6 +298,7 @@ export function useDiscDJRobot() {
 
   /** True when the current run is delegated to the Android foreground service. */
   const backgroundRunRef = useRef(false);
+
 
   const stop = useCallback(() => {
     runIdRef.current += 1;
@@ -493,13 +554,21 @@ export function useDiscDJRobot() {
       if (settings.analysisMode === "autosync-name") {
         const playlistBtn = settings.calibration.playlistButton;
         const backBtn = settings.calibration.backButton;
-        const rowZone = settings.calibration.playlistSelectedRow;
-        if (!playlistBtn || !backBtn || !rowZone) {
-          const msg = "Calibration AutoSync incomplète : boutons Playlist / Retour et zone de la ligne sélectionnée requis.";
+        if (!playlistBtn || !backBtn) {
+          const msg =
+            "Calibration AutoSync incomplète : les boutons Playlist (écran principal) et Retour (écran playlist) doivent être calibrés.";
           log("error", msg);
           setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
           return;
         }
+
+        // The first playlist row is ALWAYS the track currently loaded on the
+        // deck (highlighted in blue by DiscDJ). Its position is fixed by the
+        // DiscDJ layout — deck 1 fills the left half, deck 2 the right half,
+        // and the selected row sits at the top just below the toolbar. We
+        // derive its OCR rect deterministically from the deck id so there is
+        // nothing to calibrate manually.
+        const rowZone: CalibrationRect = firstRowZoneFor(deck);
 
         const stepStartedAt: number[] = [];
         const runStartedAt = Date.now();
@@ -517,11 +586,25 @@ export function useDiscDJRobot() {
           const stepStart = Date.now();
           const positionLabel = `${i + 1}/${ordered.length}`;
 
-          // Step 1: read + vote BPM on the active deck.
-          setState((s) => ({ ...s, phase: "reading", currentIndex: i + 1, currentReading: null, currentTrack: null }));
+          // Step 1 — main screen: read + vote BPM on the active deck.
+          setState((s) => ({
+            ...s,
+            phase: "reading",
+            currentIndex: i + 1,
+            currentReading: null,
+            currentTrack: null,
+          }));
           if (i > startIdx && settings.minReadyDelayMs > 0) await sleep(settings.minReadyDelayMs);
           if (runIdRef.current !== runId) return;
-          const voted = await readBpmWithVote(bridge, deck, settings, log, positionLabel, () => runIdRef.current === runId);
+
+          const voted = await readBpmWithVote(
+            bridge,
+            deck,
+            settings,
+            log,
+            positionLabel,
+            () => runIdRef.current === runId,
+          );
           if (runIdRef.current !== runId) return;
           const memorizedBpm = voted.bpm;
           setState((s) => ({ ...s, currentReading: voted.reading }));
@@ -531,8 +614,8 @@ export function useDiscDJRobot() {
             break;
           }
 
-          // Step 2 + 3: open playlist, OCR selected row with retries.
-          log("info", `[${positionLabel}] Ouverture de la playlist pour vérifier le nom…`);
+          // Step 2 — main → playlist.
+          log("info", `[${positionLabel}] Ouverture de la playlist pour vérifier le nom du morceau chargé…`);
           setState((s) => ({ ...s, phase: "advancing" }));
           try {
             await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs });
@@ -542,7 +625,18 @@ export function useDiscDJRobot() {
           await sleep(settings.waitAfterPlaylistOpenMs);
           if (runIdRef.current !== runId) return;
 
-          const nameResult = await readNameWithRetries(bridge, deck, rowZone, maxOcr, ordered, threshold, log, positionLabel, () => runIdRef.current === runId);
+          // Step 3 — OCR the first (always-blue) playlist row and match.
+          const nameResult = await readNameWithRetries(
+            bridge,
+            deck,
+            rowZone,
+            maxOcr,
+            ordered,
+            threshold,
+            log,
+            positionLabel,
+            () => runIdRef.current === runId,
+          );
           if (runIdRef.current !== runId) return;
 
           const ocrName = nameResult.ocrName;
@@ -593,7 +687,7 @@ export function useDiscDJRobot() {
             setState((s) => ({ ...s, needsRetryCount: s.needsRetryCount + 1 }));
           }
 
-          // Step: back to main screen.
+          // Step 4 — playlist → main.
           setState((s) => ({ ...s, phase: "advancing" }));
           try {
             await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
@@ -612,7 +706,7 @@ export function useDiscDJRobot() {
 
           if (i + 1 >= ordered.length) break;
 
-          // Advance to next track.
+          // Step 5 — main screen: Next → next track.
           try {
             await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
           } catch (e) {
@@ -650,6 +744,7 @@ export function useDiscDJRobot() {
         }));
         return;
       }
+
 
 
 
@@ -1251,6 +1346,23 @@ function joinByOverlap(a: string, b: string): string {
 function sleep(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }
+
+/**
+ * Deterministic OCR rect for the first (selected/blue) row of the DiscDJ
+ * playlist. DiscDJ splits the playlist screen in half — deck 1 on the left,
+ * deck 2 on the right — with the currently-loaded track pinned to the top
+ * of each column just below the toolbar. No user calibration is required.
+ *
+ * All values are in the canonical landscape frame (fractions of the
+ * display). Tuned to be wide/high enough for OCR to catch the full title
+ * text (which DiscDJ writes vertically along the row).
+ */
+function firstRowZoneFor(deck: DeckId): CalibrationRect {
+  const width = 0.42;
+  const x = deck === 1 ? 0.04 : 0.54;
+  return { x, y: 0.06, width, height: 0.12 };
+}
+
 
 function describe(e: unknown): string {
   if (e instanceof Error) return e.message;
