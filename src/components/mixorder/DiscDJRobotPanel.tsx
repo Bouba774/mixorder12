@@ -807,3 +807,22 @@ function phaseLabel(phase: RobotPhase): string {
 function DeckSheet({ value, onChange, onClose, onConfirm }: { value: DeckId; onChange: (d: DeckId) => void; onClose: () => void; onConfirm: () => void }) {
   return <div className="fixed inset-0 z-50 flex flex-col justify-end bg-background/70 backdrop-blur-sm" onClick={onClose}><div onClick={(e) => e.stopPropagation()} className="animate-fade-up rounded-t-2xl border-t border-border bg-surface px-4 pb-8 pt-4 shadow-2xl"><div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" /><h3 className="mb-1 font-display text-sm font-semibold">Sur quelle platine se jouent les morceaux ?</h3><p className="mb-4 text-[11px] text-muted-foreground">Le robot utilisera uniquement les points calibrés pour cette platine.</p><div className="grid grid-cols-2 gap-2">{[1, 2].map((d) => { const deck = d as DeckId; const active = value === deck; return <button key={deck} onClick={() => onChange(deck)} className={`flex flex-col items-center gap-1 rounded-xl border py-4 transition-colors ${active ? "border-primary/50 bg-accent/40 text-foreground" : "border-border bg-background text-muted-foreground hover:border-border-strong"}`}><Disc className={`h-6 w-6 ${active ? "text-primary" : ""}`} /><span className="text-sm font-semibold">Platine {deck}</span></button>; })}</div><button onClick={onConfirm} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition-transform active:scale-[0.99]"><Play className="h-4 w-4" />Lancer sur la platine {value}</button></div></div>;
 }
+
+/**
+ * List missing calibration elements that must exist before AutoSync can start.
+ * When the analysis mode is `autosync-name` this includes the playlist/back
+ * buttons and the per-deck name-zone rectangle. Otherwise only the deck
+ * Next/BPM calibration is required.
+ */
+function missingCalibrationForStart(settings: DiscDJRobotSettings, deck: DeckId): string[] {
+  const missing: string[] = [];
+  const cal = settings.calibration;
+  if (!(deck === 1 ? cal.nextDeck1 : cal.nextDeck2)) missing.push(`bouton Next platine ${deck}`);
+  if (!(deck === 1 ? cal.bpmDeck1 : cal.bpmDeck2)) missing.push(`zone BPM platine ${deck}`);
+  if (settings.analysisMode === "autosync-name") {
+    if (!cal.playlistButton) missing.push("bouton Playlist");
+    if (!cal.backButton) missing.push("bouton Retour");
+    if (!(deck === 1 ? cal.nameZoneDeck1 : cal.nameZoneDeck2)) missing.push(`zone Nom du morceau platine ${deck}`);
+  }
+  return missing;
+}
