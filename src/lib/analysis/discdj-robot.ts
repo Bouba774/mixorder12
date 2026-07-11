@@ -1253,15 +1253,22 @@ async function readBpmWithVote(
   stillRunning: () => boolean,
 ): Promise<{ bpm: number | null; reading: DiscDJReading; attempts: number; voteCount: number }> {
   const votes = new Map<number, number>();
+  const rawReadings: number[] = [];
   let lastReading: DiscDJReading = emptyReading();
-  const max = Math.max(2, settings.bpmMaxAttempts);
+  const max = Math.max(3, settings.bpmMaxAttempts);
   const quorum = Math.max(2, settings.bpmValidVoteCount);
+
+  const registerVote = (v: number, weight: number) => {
+    votes.set(v, (votes.get(v) ?? 0) + weight);
+  };
+
   for (let attempt = 1; attempt <= max; attempt++) {
     if (!stillRunning()) break;
     try {
       lastReading = await readSmartDeck(bridge, deck, settings, {}, log);
     } catch (e) {
-      log("warning", `Morceau ${positionLabel} : tentative ${attempt}/${max} échouée (${describe(e)}).`);
+      log("warning", `[${positionLabel}] tentative BPM ${attempt}/${max} en erreur (${describe(e)}) — nouvelle tentative.`);
+      await sleep(Math.max(250, settings.waitBeforeReadMs));
       continue;
     }
     if (lastReading.endOfPlaylist) {
@@ -1269,32 +1276,61 @@ async function readBpmWithVote(
     }
     if (isPlausibleBpm(lastReading.bpm)) {
       const rounded = Math.round(lastReading.bpm);
-      const next = (votes.get(rounded) ?? 0) + 1;
-      votes.set(rounded, next);
-      log("info", `Morceau ${positionLabel} : lecture ${attempt}/${max} → ${lastReading.bpm} (vote ${next}/${quorum} pour ${rounded}).`);
-      if (next >= quorum) {
-        return { bpm: rounded, reading: lastReading, attempts: attempt, voteCount: next };
+      rawReadings.push(rounded);
+      // Base weight = 1. Favor 3-digit BPMs (100..240) which is where the
+      // "150 read as 50" bug happens — an OCR pass that drops the leading
+      // digit shouldn't outweigh two passes that agree on the full number.
+      const weight = rounded >= 100 ? 2 : 1;
+      registerVote(rounded, weight);
+      log(
+        "info",
+        `[${positionLabel}] BPM lecture ${attempt}/${max} → ${rounded} (poids ${weight} · quorum ${quorum}).`,
+      );
+
+      // Heuristic "lost leading digit": if we already saw a 3-digit reading
+      // and this one is 2-digit with the SAME last two digits, treat it as
+      // the same 3-digit value (e.g. 150 vs 50 → count as 150).
+      if (rounded < 100) {
+        for (const seen of rawReadings) {
+          if (seen >= 100 && seen % 100 === rounded) {
+            registerVote(seen, 1);
+            log("info", `[${positionLabel}] hypothèse chiffre perdu : ${rounded} interprété comme ${seen}.`);
+            break;
+          }
+        }
+      }
+
+      const cur = votes.get(rounded) ?? 0;
+      if (cur >= quorum) {
+        log("success", `[${positionLabel}] BPM validé par vote : ${rounded} (score ${cur}).`);
+        return { bpm: rounded, reading: lastReading, attempts: attempt, voteCount: cur };
       }
     } else {
-      log("info", `Morceau ${positionLabel} : lecture ${attempt}/${max} illisible, nouvelle tentative…`);
+      log("info", `[${positionLabel}] BPM lecture ${attempt}/${max} illisible — nouvelle tentative avec prétraitement différent.`);
     }
-    // Small backoff so DiscDJ has time to refresh the BPM display.
-    await sleep(Math.max(200, Math.round(settings.waitBeforeReadMs / 2)));
+    // Backoff: slightly longer each attempt to let DiscDJ stabilize.
+    await sleep(Math.max(220, Math.round(settings.waitBeforeReadMs / 2)) + attempt * 80);
   }
-  // No quorum — fall back to the most frequent value if it appears ≥ 2×.
+
+  // No quorum — pick the value with the best weighted score, provided it
+  // has at least 2 supporting points OR is the only plausible one.
   let bestVal: number | null = null;
-  let bestCount = 0;
-  for (const [val, count] of votes.entries()) {
-    if (count > bestCount) {
+  let bestScore = 0;
+  const allValues: string[] = [];
+  for (const [val, score] of votes.entries()) {
+    allValues.push(`${val}×${score}`);
+    if (score > bestScore || (score === bestScore && bestVal != null && val > bestVal)) {
       bestVal = val;
-      bestCount = count;
+      bestScore = score;
     }
   }
-  if (bestVal != null && bestCount >= 2) {
-    return { bpm: bestVal, reading: lastReading, attempts: max, voteCount: bestCount };
+  log("info", `[${positionLabel}] Fin du vote BPM. Candidats : {${allValues.join(", ") || "aucun"}}. Retenu : ${bestVal ?? "aucun"}.`);
+  if (bestVal != null && bestScore >= 2) {
+    return { bpm: bestVal, reading: lastReading, attempts: max, voteCount: bestScore };
   }
-  return { bpm: null, reading: lastReading, attempts: max, voteCount: bestCount };
+  return { bpm: null, reading: lastReading, attempts: max, voteCount: bestScore };
 }
+
 
 async function readSmartDeck(
   bridge: DiscDJBridge,
