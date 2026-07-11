@@ -280,6 +280,9 @@ function normalizeCalibration(input: Partial<DiscDJCalibration> | undefined): Di
     bpmDeck2: normalizeRect(input?.bpmDeck2),
     playlistButton: normalizePoint(input?.playlistButton),
     backButton: normalizePoint(input?.backButton),
+    nameZoneDeck1: normalizeRect(input?.nameZoneDeck1),
+    nameZoneDeck2: normalizeRect(input?.nameZoneDeck2),
+
 
     savedAt: typeof input?.savedAt === "number" ? input.savedAt : null,
     timestamps:
