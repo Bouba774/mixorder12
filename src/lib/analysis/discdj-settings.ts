@@ -15,15 +15,28 @@ export type DiscDJMatchingMode = "smart";
  */
 export type DiscDJAnalysisMode = "auto-sync" | "verification" | "autosync-name";
 
-/** The calibratable elements. `playlist*` are used by the AutoSync (name-checked) mode. */
+/** The calibratable elements. `playlistButton`/`backButton` are used by the AutoSync (name-checked) mode. */
 export type CalibrationTarget =
   | "nextDeck1"
   | "nextDeck2"
   | "bpmDeck1"
   | "bpmDeck2"
   | "playlistButton"
-  | "backButton"
-  | "playlistSelectedRow";
+  | "backButton";
+
+/** Screen where a calibration target lives. Governs the contextual capture flow. */
+export type CalibrationScreen = "main" | "playlist";
+
+export const CALIBRATION_SCREEN: Record<CalibrationTarget, CalibrationScreen> = {
+  nextDeck1: "main",
+  nextDeck2: "main",
+  bpmDeck1: "main",
+  bpmDeck2: "main",
+  playlistButton: "main",
+  // Corrected: the Back button only exists on the playlist screen.
+  backButton: "playlist",
+};
+
 
 export interface CalibrationPoint {
   /** Canonical landscape X coordinate, normalized in [0, 1]. */
