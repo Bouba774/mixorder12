@@ -603,18 +603,22 @@ function DiagnosticImage({ label, src }: { label: string; src?: string | null })
   );
 }
 
-function ElementRow({ item, valid, ts, busy, active, onRecalibrate }: { item: { id: CalibrationTarget; label: string; icon: "point" | "zone" }; valid: boolean; ts: number | null; busy: boolean; active: boolean; onRecalibrate: () => void }) {
+function ElementRow({ item, valid, ts, busy, active, onRecalibrate }: { item: { id: CalibrationTarget; label: string; icon: "point" | "zone"; screen?: "main" | "playlist" }; valid: boolean; ts: number | null; busy: boolean; active: boolean; onRecalibrate: () => void }) {
   return (
     <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 ${active ? "border-primary/60 bg-accent/30" : "border-border/60 bg-background/60"}`}>
       {valid ? <CircleCheck className="h-4 w-4 shrink-0 text-primary" /> : <CircleX className="h-4 w-4 shrink-0 text-muted-foreground" />}
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1 truncate text-[11px] font-semibold leading-tight">{item.icon === "point" ? <MousePointer2 className="h-3 w-3 shrink-0 text-muted-foreground" /> : <ScanLine className="h-3 w-3 shrink-0 text-muted-foreground" />}{item.label}</p>
-        <p className="truncate text-[10px] text-muted-foreground">{valid ? (ts ? `Calibré le ${new Date(ts).toLocaleString()}` : "Calibré") : "Non calibré"}</p>
+        <p className="truncate text-[10px] text-muted-foreground">
+          {item.screen && <span className="mr-1 rounded bg-accent/40 px-1 py-px text-[9px] font-semibold uppercase text-primary">{item.screen === "playlist" ? "Playlist" : "Principal"}</span>}
+          {valid ? (ts ? `Calibré le ${new Date(ts).toLocaleString()}` : "Calibré") : "Non calibré"}
+        </p>
       </div>
       <button onClick={onRecalibrate} disabled={busy} className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-border px-2 text-[10px] font-semibold text-foreground disabled:opacity-50">{busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}Recalibrer</button>
     </div>
   );
 }
+
 
 function ScreenshotCalibrator({ target, onTargetChange, calibration, onSetElement }: { target: CalibrationTarget; onTargetChange: (t: CalibrationTarget) => void; calibration: DiscDJCalibration; onSetElement: (target: CalibrationTarget, value: CalibrationPoint | CalibrationRect | null) => void }) {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
