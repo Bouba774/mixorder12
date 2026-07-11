@@ -620,7 +620,7 @@ export function useDiscDJRobot() {
             try {
               await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs });
             } catch { /* handled by retry loop */ }
-            await sleep(settings.waitAfterPlaylistOpenMs);
+            await bgSleep(bridge, settings.waitAfterPlaylistOpenMs);
             if (runIdRef.current !== runId) return;
             await ensureDiscDJForeground(bridge, log);
 
@@ -633,10 +633,21 @@ export function useDiscDJRobot() {
               continue;
             }
 
-            // 5. Match against the imported library.
-            const match = findBestMatch<Track>(cleaned, ordered, (t) => t.name, { threshold });
+            // 5. Match against the imported library (compare against both
+            //    normalized display name and the original filename — DiscDJ
+            //    often shows the filename verbatim, MixOrder may have
+            //    cleaned it up on import).
+            const match = findBestMatch<Track>(
+              cleaned,
+              ordered,
+              (t) => [t.name, t.originalName].filter(Boolean) as string[],
+              { threshold },
+            );
             if (!match.confident || !match.best) {
-              log("warning", `${progress} Aucun morceau MixOrder ne correspond à « ${cleaned} ».`);
+              const dbg = match.best
+                ? ` (meilleur candidat: « ${match.best.item.name} » ${(match.best.score * 100).toFixed(0)}%)`
+                : "";
+              log("warning", `${progress} Aucun morceau MixOrder ne correspond à « ${cleaned} »${dbg}.`);
               await returnToMain(bridge, deck, backBtn!, settings);
               continue;
             }
@@ -694,10 +705,10 @@ export function useDiscDJRobot() {
           try {
             await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
           } catch {
-            await sleep(500);
+            await bgSleep(bridge, 500);
             try { await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs }); } catch { /* ignore */ }
           }
-          await sleep(settings.waitAfterClickMs);
+          await bgSleep(bridge, settings.waitAfterClickMs);
         }
 
         if (snapshot) {
