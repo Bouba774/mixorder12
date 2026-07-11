@@ -551,7 +551,14 @@ public class DiscDJAccessibilityService extends AccessibilityService {
         return out;
     }
 
+    private static boolean looksLikeBpmText(String t) {
+        if (t == null) return false;
+        String s = t.toLowerCase(java.util.Locale.ROOT);
+        return s.contains("bpm") || s.contains("b.p.m") || s.contains("tempo");
+    }
+
     public static Double parseBestBpm(List<String> texts) {
+
         if (texts == null || texts.isEmpty()) return null;
         // Vote-based parsing: collect every plausible BPM candidate from
         // both labelled ("BPM: 150") and loose matches, rank them, and
