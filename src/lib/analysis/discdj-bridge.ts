@@ -160,6 +160,13 @@ export interface DiscDJBridge {
   clearBackgroundState?(): Promise<void>;
   getBackgroundStatus?(): Promise<BackgroundStatus>;
   addBackgroundListener?(name: BackgroundEventName, cb: (payload: unknown) => void): { remove: () => void };
+  /**
+   * Native-backed sleep. When available, callers should prefer this over a
+   * JS setTimeout during long-running loops: WebView setTimeout is heavily
+   * throttled once MixOrder loses focus (which is exactly what happens
+   * while DiscDJ owns the foreground during an analysis run).
+   */
+  nativeSleep?(ms: number): Promise<void>;
 }
 
 /**
