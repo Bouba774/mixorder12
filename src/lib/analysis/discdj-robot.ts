@@ -1347,6 +1347,23 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }
 
+/**
+ * Deterministic OCR rect for the first (selected/blue) row of the DiscDJ
+ * playlist. DiscDJ splits the playlist screen in half — deck 1 on the left,
+ * deck 2 on the right — with the currently-loaded track pinned to the top
+ * of each column just below the toolbar. No user calibration is required.
+ *
+ * All values are in the canonical landscape frame (fractions of the
+ * display). Tuned to be wide/high enough for OCR to catch the full title
+ * text (which DiscDJ writes vertically along the row).
+ */
+function firstRowZoneFor(deck: DeckId): CalibrationRect {
+  const width = 0.42;
+  const x = deck === 1 ? 0.04 : 0.54;
+  return { x, y: 0.06, width, height: 0.12 };
+}
+
+
 function describe(e: unknown): string {
   if (e instanceof Error) return e.message;
   try {
