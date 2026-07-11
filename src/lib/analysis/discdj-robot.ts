@@ -1476,6 +1476,18 @@ function sleep(ms: number) {
 }
 
 /**
+ * Background-safe sleep. Delegates to the native plugin when available
+ * (Android Handler.postDelayed — NOT throttled when MixOrder is
+ * offscreen), falls back to setTimeout on web. Use this inside long-
+ * running analysis loops so the robot keeps running while the user has
+ * DiscDJ in the foreground.
+ */
+function bgSleep(bridge: DiscDJBridge, ms: number): Promise<void> {
+  if (typeof bridge.nativeSleep === "function") return bridge.nativeSleep(ms);
+  return sleep(ms);
+}
+
+/**
  * Ensure DiscDJ owns the foreground before the next action. If not, wait a
  * few seconds, then re-open. The robot never asks the user to switch back
  * manually — that would break the whole unattended promise.
