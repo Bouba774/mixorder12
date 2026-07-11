@@ -319,7 +319,16 @@ export function DiscDJRobotPanel() {
       </div>
 
       {deckSheetOpen && (
-        <DeckSheet value={pendingDeck} onChange={setPendingDeck} onClose={() => setDeckSheetOpen(false)} onConfirm={() => { setDeckSheetOpen(false); start(pendingDeck); }} />
+        <DeckSheet value={pendingDeck} onChange={setPendingDeck} onClose={() => setDeckSheetOpen(false)} onConfirm={() => {
+          const missing = missingCalibrationForStart(state.settings, pendingDeck);
+          if (missing.length > 0) {
+            alert(`Calibration incomplète — recalibre : ${missing.join(", ")}`);
+            return;
+          }
+          setDeckSheetOpen(false);
+          start(pendingDeck);
+        }} />
+
       )}
     </section>
   );
