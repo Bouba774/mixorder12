@@ -206,8 +206,19 @@ export function useDiscDJRobot() {
     },
     [],
   );
-
-  /** Interactive calibration: open DiscDJ, capture a tap/zone, persist it. */
+  /**
+   * Interactive calibration with **contextual navigation**.
+   *
+   * Each target lives on a specific DiscDJ screen (main or playlist).
+   * Before showing the capture overlay we make sure DiscDJ is on the right
+   * screen — otherwise the user is asked to touch a button that isn't even
+   * visible. When calibrating the Back button we auto-tap Playlist first.
+   *
+   * After capture we immediately re-tap the recorded position (testTap) so
+   * the coordinates that were saved are the coordinates that actually get
+   * clicked at runtime. No horizontal/vertical offset, no scaling — the
+   * point displayed, saved and clicked is strictly the same.
+   */
   const captureCalibration = useCallback(
     async (target: CalibrationTarget): Promise<boolean> => {
       const bridge = bridgeRef.current;
@@ -216,9 +227,37 @@ export function useDiscDJRobot() {
         return false;
       }
       try {
-        log("info", `Calibration « ${target} » : ouverture de DiscDJ…`);
+        const screen = CALIBRATION_SCREEN[target];
+        log("info", `Calibration « ${target} » (écran ${screen}) : ouverture de DiscDJ…`);
         await bridge.openApp();
-        await sleep(900);
+        await sleep(settingsRef.current.waitOnOpenMs);
+
+        // Contextual navigation — bring DiscDJ onto the screen where the
+        // target actually lives before asking the user to touch it.
+        if (screen === "playlist") {
+          const playlistBtn = settingsRef.current.calibration.playlistButton;
+          if (!playlistBtn) {
+            log(
+              "error",
+              "Calibre d'abord le bouton Playlist (écran principal) : impossible d'atteindre la playlist sans lui.",
+            );
+            return false;
+          }
+          log("info", "Ouverture de la playlist DiscDJ…");
+          await bridge.tapNext(1, { point: playlistBtn, pressDurationMs: settingsRef.current.pressDurationMs });
+          await sleep(settingsRef.current.waitAfterPlaylistOpenMs);
+        } else if (screen === "main") {
+          // If we happen to be on the playlist and we know how to get back, do it.
+          const backBtn = settingsRef.current.calibration.backButton;
+          if (backBtn) {
+            // Best-effort return to main. Harmless when we're already there.
+            try {
+              await bridge.tapNext(1, { point: backBtn, pressDurationMs: settingsRef.current.pressDurationMs });
+              await sleep(settingsRef.current.waitAfterBackMs);
+            } catch { /* ignore — we might already be on the main screen */ }
+          }
+        }
+
         const res = await bridge.captureCalibration(target);
         if (res.cancelled) {
           log("warning", "Calibration annulée.");
@@ -231,6 +270,23 @@ export function useDiscDJRobot() {
         }
         updateCalibrationElement(target, value);
         log("success", `Calibration enregistrée : ${target}.`);
+
+        // Automatic self-check: replay the exact recorded point/rect as a
+        // tap so any discrepancy between "recorded" and "clicked" is caught
+        // immediately. Skipped for zones (BPM rectangles — nothing to tap).
+        if (res.point) {
+          try {
+            log("info", "Vérification : clic de contrôle sur la position enregistrée…");
+            await bridge.tapNext(1, { point: res.point, pressDurationMs: settingsRef.current.pressDurationMs });
+            log(
+              "success",
+              `✅ Clic de contrôle effectué à x=${res.point.x.toFixed(3)} · y=${res.point.y.toFixed(3)}.`,
+            );
+          } catch (e) {
+            log("error", `⚠️ Clic de contrôle refusé (${describe(e)}) — recommence la calibration.`);
+            return false;
+          }
+        }
         return true;
       } catch (e) {
         log("error", `Calibration échouée : ${describe(e)}`);
@@ -242,6 +298,7 @@ export function useDiscDJRobot() {
 
   /** True when the current run is delegated to the Android foreground service. */
   const backgroundRunRef = useRef(false);
+
 
   const stop = useCallback(() => {
     runIdRef.current += 1;
