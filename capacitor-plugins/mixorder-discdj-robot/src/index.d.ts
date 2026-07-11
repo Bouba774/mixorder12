@@ -91,6 +91,8 @@ export interface DiscDJRobotPlugin {
     point?: DiscDJCalibrationPoint | null;
     pressDurationMs?: number;
   }): Promise<void>;
+  /** Native-backed sleep — not throttled when MixOrder is backgrounded. */
+  sleep(options: { ms: number }): Promise<void>;
 }
 
 export declare const DiscDJRobot: DiscDJRobotPlugin;
