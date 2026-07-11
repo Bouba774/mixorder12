@@ -50,11 +50,11 @@ const TARGETS: Array<{ id: CalibrationTarget; label: string; icon: "point" | "zo
   { id: "bpmDeck2", label: "Zone BPM · platine 2", icon: "zone", deck: 2 },
 ];
 
-const AUTOSYNC_TARGETS: Array<{ id: CalibrationTarget; label: string; icon: "point" | "zone" }> = [
-  { id: "playlistButton", label: "Bouton Playlist", icon: "point" },
-  { id: "backButton", label: "Bouton Retour (haut)", icon: "point" },
-  { id: "playlistSelectedRow", label: "Ligne sélectionnée (bleue)", icon: "zone" },
+const AUTOSYNC_TARGETS: Array<{ id: CalibrationTarget; label: string; icon: "point" | "zone"; screen: "main" | "playlist" }> = [
+  { id: "playlistButton", label: "Bouton Playlist (écran principal)", icon: "point", screen: "main" },
+  { id: "backButton", label: "Bouton Retour (dans la playlist)", icon: "point", screen: "playlist" },
 ];
+
 
 export function DiscDJRobotPanel() {
   const {
