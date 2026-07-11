@@ -903,13 +903,19 @@ export function useDiscDJRobot() {
             await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
           } catch (e) {
             const message = describe(e);
-            log("error", `Clic Next échoué : ${message}`);
-            setState((s) => ({ ...s, phase: "error", errorMessage: message, lastError: message }));
-            return;
+            log("warning", `Clic Next échoué (${message}) — nouvelle tentative après une courte pause.`);
+            await sleep(600);
+            try {
+              await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
+            } catch (e2) {
+              log("error", `Second clic Next échoué (${describe(e2)}) — la boucle continue au morceau suivant.`);
+              setState((s) => ({ ...s, lastError: describe(e2) }));
+            }
           }
           await sleep(settings.waitAfterClickMs);
           if (runIdRef.current !== runId) return;
         }
+
 
         // Clear resume marker on clean completion.
         if (snapshot) {
