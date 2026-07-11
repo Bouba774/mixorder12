@@ -1474,7 +1474,7 @@ async function ensureDiscDJForeground(
   log: (level: RobotLogLevel, message: string) => void,
 ): Promise<void> {
   try {
-    const status = await bridge.isReady();
+    const status = (await bridge.isReady()) as { ready: boolean; foreground?: boolean };
     if (status.foreground !== false) return;
   } catch { /* fall through to reopen */ }
   log("warning", "DiscDJ n'est plus au premier plan — réouverture automatique.");
