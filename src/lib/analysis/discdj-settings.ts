@@ -154,7 +154,7 @@ export const DEFAULT_DISCDJ_SETTINGS: DiscDJRobotSettings = {
   minReadyDelayMs: 800,
   bpmMaxAttempts: 8,
   bpmValidVoteCount: 2,
-  nameMatchThreshold: 0.72,
+  nameMatchThreshold: 0.55,
   nameMaxOcrRetries: 3,
   waitAfterPlaylistOpenMs: 900,
   waitAfterBackMs: 700,

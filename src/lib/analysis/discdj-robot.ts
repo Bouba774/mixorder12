@@ -611,7 +611,7 @@ export function useDiscDJRobot() {
             if (runIdRef.current !== runId) return;
             if (bpm == null) {
               log("warning", `${progress} BPM illisible — nouvelle tentative.`);
-              await sleep(500);
+              await bgSleep(bridge, 500);
               continue;
             }
 
@@ -620,7 +620,7 @@ export function useDiscDJRobot() {
             try {
               await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs });
             } catch { /* handled by retry loop */ }
-            await sleep(settings.waitAfterPlaylistOpenMs);
+            await bgSleep(bridge, settings.waitAfterPlaylistOpenMs);
             if (runIdRef.current !== runId) return;
             await ensureDiscDJForeground(bridge, log);
 
@@ -633,10 +633,21 @@ export function useDiscDJRobot() {
               continue;
             }
 
-            // 5. Match against the imported library.
-            const match = findBestMatch<Track>(cleaned, ordered, (t) => t.name, { threshold });
+            // 5. Match against the imported library (compare against both
+            //    normalized display name and the original filename — DiscDJ
+            //    often shows the filename verbatim, MixOrder may have
+            //    cleaned it up on import).
+            const match = findBestMatch<Track>(
+              cleaned,
+              ordered,
+              (t) => [t.name, t.originalName].filter(Boolean) as string[],
+              { threshold },
+            );
             if (!match.confident || !match.best) {
-              log("warning", `${progress} Aucun morceau MixOrder ne correspond à « ${cleaned} ».`);
+              const dbg = match.best
+                ? ` (meilleur candidat: « ${match.best.item.name} » ${(match.best.score * 100).toFixed(0)}%)`
+                : "";
+              log("warning", `${progress} Aucun morceau MixOrder ne correspond à « ${cleaned} »${dbg}.`);
               await returnToMain(bridge, deck, backBtn!, settings);
               continue;
             }
@@ -694,10 +705,10 @@ export function useDiscDJRobot() {
           try {
             await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
           } catch {
-            await sleep(500);
+            await bgSleep(bridge, 500);
             try { await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs }); } catch { /* ignore */ }
           }
-          await sleep(settings.waitAfterClickMs);
+          await bgSleep(bridge, settings.waitAfterClickMs);
         }
 
         if (snapshot) {
@@ -1465,6 +1476,18 @@ function sleep(ms: number) {
 }
 
 /**
+ * Background-safe sleep. Delegates to the native plugin when available
+ * (Android Handler.postDelayed — NOT throttled when MixOrder is
+ * offscreen), falls back to setTimeout on web. Use this inside long-
+ * running analysis loops so the robot keeps running while the user has
+ * DiscDJ in the foreground.
+ */
+function bgSleep(bridge: DiscDJBridge, ms: number): Promise<void> {
+  if (typeof bridge.nativeSleep === "function") return bridge.nativeSleep(ms);
+  return sleep(ms);
+}
+
+/**
  * Ensure DiscDJ owns the foreground before the next action. If not, wait a
  * few seconds, then re-open. The robot never asks the user to switch back
  * manually — that would break the whole unattended promise.
@@ -1478,9 +1501,9 @@ async function ensureDiscDJForeground(
     if (status.foreground !== false) return;
   } catch { /* fall through to reopen */ }
   log("warning", "DiscDJ n'est plus au premier plan — réouverture automatique.");
-  await sleep(1500);
+  await bgSleep(bridge, 1500);
   try { await bridge.openApp(); } catch { /* ignore — next OCR will retry */ }
-  await sleep(1200);
+  await bgSleep(bridge, 1200);
 }
 
 /**
@@ -1493,7 +1516,7 @@ async function readBpmOnce(
   bpmZone: CalibrationRect,
   settings: DiscDJRobotSettings,
 ): Promise<number | null> {
-  await sleep(Math.max(200, settings.waitBeforeReadMs));
+  await bgSleep(bridge, Math.max(200, settings.waitBeforeReadMs));
   try {
     const r = await bridge.readBpm(deck, { bpmZone });
     if (isPlausibleBpm(r.bpm)) return Math.round(r.bpm);
@@ -1515,7 +1538,7 @@ async function returnToMain(
   try {
     await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
   } catch { /* ignore, we'll re-check foreground next step */ }
-  await sleep(settings.waitAfterBackMs);
+  await bgSleep(bridge, settings.waitAfterBackMs);
 }
 
 /**

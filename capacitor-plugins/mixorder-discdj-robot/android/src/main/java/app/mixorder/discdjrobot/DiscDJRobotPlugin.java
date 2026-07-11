@@ -610,5 +610,18 @@ public class DiscDJRobotPlugin extends Plugin {
         i.setAction(action);
         try { getContext().startService(i); } catch (Exception ignored) {}
     }
+
+    /**
+     * Native-backed sleep. Resolves after `ms` milliseconds using a background
+     * Handler that Android does NOT throttle when the WebView is offscreen —
+     * unlike JS setTimeout, which is heavily throttled once MixOrder loses
+     * focus (typical when the user switches to DiscDJ during a run).
+     */
+    @PluginMethod
+    public void sleep(PluginCall call) {
+        long ms = Math.max(0, call.getLong("ms", 0L));
+        new android.os.Handler(android.os.Looper.getMainLooper())
+                .postDelayed(call::resolve, ms);
+    }
 }
 

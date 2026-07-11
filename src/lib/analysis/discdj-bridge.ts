@@ -160,6 +160,13 @@ export interface DiscDJBridge {
   clearBackgroundState?(): Promise<void>;
   getBackgroundStatus?(): Promise<BackgroundStatus>;
   addBackgroundListener?(name: BackgroundEventName, cb: (payload: unknown) => void): { remove: () => void };
+  /**
+   * Native-backed sleep. When available, callers should prefer this over a
+   * JS setTimeout during long-running loops: WebView setTimeout is heavily
+   * throttled once MixOrder loses focus (which is exactly what happens
+   * while DiscDJ owns the foreground during an analysis run).
+   */
+  nativeSleep?(ms: number): Promise<void>;
 }
 
 /**
@@ -311,6 +318,13 @@ function createNativeBridge(): DiscDJBridge {
       const handle = plugin.addListener(name, cb);
       return { remove: () => { void handle?.remove?.(); } };
     },
+    async nativeSleep(ms) {
+      if (typeof plugin.sleep === "function") {
+        await plugin.sleep({ ms });
+      } else {
+        await new Promise<void>((r) => setTimeout(r, ms));
+      }
+    },
   };
 }
 
@@ -357,6 +371,7 @@ interface NativeDiscDJRobot {
   clearBackgroundState(): Promise<void>;
   getBackgroundStatus(): Promise<BackgroundStatus>;
   addListener(name: string, cb: (payload: unknown) => void): { remove: () => Promise<void> } | undefined;
+  sleep?(opts: { ms: number }): Promise<void>;
 }
 
 function calibrationInstruction(target: CalibrationTarget): string {
