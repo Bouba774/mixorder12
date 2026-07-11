@@ -586,137 +586,171 @@ export function useDiscDJRobot() {
           const stepStart = Date.now();
           const positionLabel = `${i + 1}/${ordered.length}`;
 
-          // Step 1 — main screen: read + vote BPM on the active deck.
-          setState((s) => ({
-            ...s,
-            phase: "reading",
-            currentIndex: i + 1,
-            currentReading: null,
-            currentTrack: null,
-          }));
-          if (i > startIdx && settings.minReadyDelayMs > 0) await sleep(settings.minReadyDelayMs);
-          if (runIdRef.current !== runId) return;
-
-          const voted = await readBpmWithVote(
-            bridge,
-            deck,
-            settings,
-            log,
-            positionLabel,
-            () => runIdRef.current === runId,
-          );
-          if (runIdRef.current !== runId) return;
-          const memorizedBpm = voted.bpm;
-          setState((s) => ({ ...s, currentReading: voted.reading }));
-
-          if (voted.reading.endOfPlaylist) {
-            log("success", "Fin de playlist DiscDJ détectée.");
-            break;
-          }
-
-          // Step 2 — main → playlist.
-          log("info", `[${positionLabel}] Ouverture de la playlist pour vérifier le nom du morceau chargé…`);
-          setState((s) => ({ ...s, phase: "advancing" }));
           try {
-            await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs });
-          } catch (e) {
-            log("error", `Clic Playlist échoué : ${describe(e)}`);
-          }
-          await sleep(settings.waitAfterPlaylistOpenMs);
-          if (runIdRef.current !== runId) return;
+            // Step 1 — main screen: read + vote BPM on the active deck.
+            setState((s) => ({
+              ...s,
+              phase: "reading",
+              currentIndex: i + 1,
+              currentReading: null,
+              currentTrack: null,
+            }));
+            if (i > startIdx && settings.minReadyDelayMs > 0) await sleep(settings.minReadyDelayMs);
+            if (runIdRef.current !== runId) return;
 
-          // Step 3 — OCR the first (always-blue) playlist row and match.
-          const nameResult = await readNameWithRetries(
-            bridge,
-            deck,
-            rowZone,
-            maxOcr,
-            ordered,
-            threshold,
-            log,
-            positionLabel,
-            () => runIdRef.current === runId,
-          );
-          if (runIdRef.current !== runId) return;
+            const voted = await readBpmWithVote(
+              bridge,
+              deck,
+              settings,
+              log,
+              positionLabel,
+              () => runIdRef.current === runId,
+            );
+            if (runIdRef.current !== runId) return;
+            const memorizedBpm = voted.bpm;
+            setState((s) => ({ ...s, currentReading: voted.reading }));
 
-          const ocrName = nameResult.ocrName;
-          const match = nameResult.match;
-          const chosen = match.confident ? match.best!.item : null;
+            if (voted.reading.endOfPlaylist) {
+              log("success", "Fin de playlist DiscDJ détectée.");
+              break;
+            }
 
-          if (chosen && memorizedBpm != null) {
-            setTrackAnalysis(chosen.id, { bpm: memorizedBpm }, "discdj-auto");
-            processedRef.current.add(chosen.id);
-            foundBpms.push({
-              index: i + 1,
-              name: chosen.name,
-              bpm: memorizedBpm,
-              ocrName: ocrName || undefined,
-              score: match.best?.score,
-            });
-            if (settings.autosaveEachStep) {
+            // Step 2 — main → playlist.
+            log("info", `[${positionLabel}] Ouverture de la playlist pour vérifier le nom du morceau chargé…`);
+            setState((s) => ({ ...s, phase: "advancing" }));
+            try {
+              await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs });
+            } catch (e) {
+              log("warning", `[${positionLabel}] Clic Playlist échoué (${describe(e)}) — nouvelle tentative.`);
+              await sleep(400);
+              try { await bridge.tapNext(deck, { point: playlistBtn, pressDurationMs: settings.pressDurationMs }); } catch { /* ignore */ }
+            }
+            await sleep(settings.waitAfterPlaylistOpenMs);
+            if (runIdRef.current !== runId) return;
+
+            // Step 3 — OCR the first (always-blue) playlist row and match.
+            const nameResult = await readNameWithRetries(
+              bridge,
+              deck,
+              rowZone,
+              maxOcr,
+              ordered,
+              threshold,
+              log,
+              positionLabel,
+              () => runIdRef.current === runId,
+            );
+            if (runIdRef.current !== runId) return;
+
+            const ocrName = nameResult.ocrName;
+            const match = nameResult.match;
+            const chosen = match.confident ? match.best!.item : null;
+
+            if (chosen && memorizedBpm != null) {
+              setTrackAnalysis(chosen.id, { bpm: memorizedBpm }, "discdj-auto");
+              processedRef.current.add(chosen.id);
+              foundBpms.push({
+                index: i + 1,
+                name: chosen.name,
+                bpm: memorizedBpm,
+                ocrName: ocrName || undefined,
+                score: match.best?.score,
+              });
+              if (settings.autosaveEachStep) {
+                snapshot = markRun(
+                  snapshot ?? { v: 1, name: p.name, tracks: {} },
+                  p.name,
+                  { sourceId: "discdj-auto", startedAt: runStartedAt, lastPath: chosen.path },
+                );
+                if (ocrName) snapshot = rememberAlias(snapshot, p.name, normalizeTitle(ocrName), chosen.path);
+                saveSnapshot(fingerprint, snapshot);
+              }
+              log(
+                "success",
+                `[${positionLabel}] BPM=${memorizedBpm} · OCR="${ocrName}" → « ${chosen.name} » (score ${(match.best!.score * 100).toFixed(0)}%) ✓ enregistré.`,
+              );
+              setState((s) => ({ ...s, currentTrack: chosen, doneInRun: processedRef.current.size }));
+            } else {
+              const reason = memorizedBpm == null
+                ? "BPM illisible après toutes les tentatives — marqué à réanalyser."
+                : !ocrName
+                  ? "OCR nom vide"
+                  : `score ${(match.best?.score ?? 0).toFixed(2)} < ${threshold.toFixed(2)}${match.runnerUp ? ` (2e ${(match.runnerUp.score).toFixed(2)})` : ""}`;
+              toVerify.push({
+                index: i + 1,
+                ocrName: ocrName || "",
+                bestGuess: match.best?.item.name,
+                score: match.best?.score ?? 0,
+                bpm: memorizedBpm,
+              });
+              log(
+                "warning",
+                `[${positionLabel}] BPM=${memorizedBpm ?? "?"} · OCR="${ocrName || "?"}" → À réanalyser (${reason}). BPM non enregistré.`,
+              );
+              setState((s) => ({ ...s, needsRetryCount: s.needsRetryCount + 1 }));
+            }
+
+            // Step 4 — playlist → main.
+            setState((s) => ({ ...s, phase: "advancing" }));
+            try {
+              await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
+            } catch (e) {
+              log("warning", `[${positionLabel}] Clic Retour échoué (${describe(e)}) — nouvelle tentative.`);
+              await sleep(400);
+              try { await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs }); } catch { /* ignore */ }
+            }
+            await sleep(settings.waitAfterBackMs);
+            if (runIdRef.current !== runId) return;
+
+            // Save progress marker (resume-safe) even when the current step
+            // couldn't attribute a BPM — we still moved past this position.
+            snapshot = markRun(
+              snapshot ?? { v: 1, name: p.name, tracks: {} },
+              p.name,
+              { sourceId: "discdj-auto", startedAt: runStartedAt, lastPath: ordered[i].path },
+            );
+            if (settings.autosaveEachStep) saveSnapshot(fingerprint, snapshot);
+
+            // ETA rolling.
+            stepStartedAt.push(Date.now() - stepStart);
+            const recent = stepStartedAt.slice(-5);
+            const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+            const remaining = ordered.length - (i + 1);
+            setState((s) => ({ ...s, etaMsRemaining: remaining > 0 ? Math.round(avg * remaining) : 0 }));
+
+            if (i + 1 >= ordered.length) break;
+
+            // Step 5 — main screen: Next → next track.
+            try {
+              await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
+            } catch (e) {
+              log("warning", `[${positionLabel}] Clic Next échoué (${describe(e)}) — nouvelle tentative.`);
+              await sleep(500);
+              try {
+                await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
+              } catch (e2) {
+                log("error", `[${positionLabel}] Second clic Next échoué (${describe(e2)}) — le morceau suivant est peut-être décalé, la boucle continue.`);
+              }
+            }
+            await sleep(settings.waitAfterClickMs);
+            if (runIdRef.current !== runId) return;
+          } catch (loopErr) {
+            // Any unexpected exception inside a step must NEVER stop the
+            // full analysis. Persist progress, log, and move on.
+            log("error", `[${positionLabel}] Erreur inattendue : ${describe(loopErr)} — reprise automatique au morceau suivant.`);
+            setState((s) => ({ ...s, needsRetryCount: s.needsRetryCount + 1, lastError: describe(loopErr) }));
+            try {
               snapshot = markRun(
                 snapshot ?? { v: 1, name: p.name, tracks: {} },
                 p.name,
-                { sourceId: "discdj-auto", startedAt: runStartedAt, lastPath: chosen.path },
+                { sourceId: "discdj-auto", startedAt: runStartedAt, lastPath: ordered[i].path },
               );
-              if (ocrName) snapshot = rememberAlias(snapshot, p.name, normalizeTitle(ocrName), chosen.path);
-              saveSnapshot(fingerprint, snapshot);
-            }
-            log(
-              "success",
-              `[${positionLabel}] BPM=${memorizedBpm} · OCR="${ocrName}" → « ${chosen.name} » (score ${(match.best!.score * 100).toFixed(0)}%) ✓ enregistré.`,
-            );
-            setState((s) => ({ ...s, currentTrack: chosen, doneInRun: processedRef.current.size }));
-          } else {
-            const reason = memorizedBpm == null
-              ? "BPM illisible"
-              : !ocrName
-                ? "OCR nom vide"
-                : `score ${(match.best?.score ?? 0).toFixed(2)} < ${threshold.toFixed(2)}${match.runnerUp ? ` (2e ${(match.runnerUp.score).toFixed(2)})` : ""}`;
-            toVerify.push({
-              index: i + 1,
-              ocrName: ocrName || "",
-              bestGuess: match.best?.item.name,
-              score: match.best?.score ?? 0,
-              bpm: memorizedBpm,
-            });
-            log(
-              "warning",
-              `[${positionLabel}] BPM=${memorizedBpm ?? "?"} · OCR="${ocrName || "?"}" → À vérifier (${reason}). BPM non enregistré.`,
-            );
-            setState((s) => ({ ...s, needsRetryCount: s.needsRetryCount + 1 }));
+              if (settings.autosaveEachStep) saveSnapshot(fingerprint, snapshot);
+            } catch { /* ignore snapshot save errors */ }
+            await sleep(600);
           }
-
-          // Step 4 — playlist → main.
-          setState((s) => ({ ...s, phase: "advancing" }));
-          try {
-            await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
-          } catch (e) {
-            log("error", `Clic Retour échoué : ${describe(e)}`);
-          }
-          await sleep(settings.waitAfterBackMs);
-          if (runIdRef.current !== runId) return;
-
-          // ETA rolling.
-          stepStartedAt.push(Date.now() - stepStart);
-          const recent = stepStartedAt.slice(-5);
-          const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
-          const remaining = ordered.length - (i + 1);
-          setState((s) => ({ ...s, etaMsRemaining: remaining > 0 ? Math.round(avg * remaining) : 0 }));
-
-          if (i + 1 >= ordered.length) break;
-
-          // Step 5 — main screen: Next → next track.
-          try {
-            await bridge.tapNext(deck, { point: cal.next, pressDurationMs: settings.pressDurationMs });
-          } catch (e) {
-            log("error", `Clic Next échoué : ${describe(e)}`);
-            setState((s) => ({ ...s, phase: "error", errorMessage: describe(e) }));
-            return;
-          }
-          await sleep(settings.waitAfterClickMs);
-          if (runIdRef.current !== runId) return;
         }
+
 
         if (snapshot) {
           snapshot = markRun(snapshot, p.name, undefined);
