@@ -554,21 +554,21 @@ export function useDiscDJRobot() {
       if (settings.analysisMode === "autosync-name") {
         const playlistBtn = settings.calibration.playlistButton;
         const backBtn = settings.calibration.backButton;
-        if (!playlistBtn || !backBtn) {
-          const msg =
-            "Calibration AutoSync incomplète : les boutons Playlist (écran principal) et Retour (écran playlist) doivent être calibrés.";
+        const nameZone = deck === 1 ? settings.calibration.nameZoneDeck1 : settings.calibration.nameZoneDeck2;
+        const missingCal: string[] = [];
+        if (!cal.next) missingCal.push(`bouton Next platine ${deck}`);
+        if (!cal.bpmZone) missingCal.push(`zone BPM platine ${deck}`);
+        if (!playlistBtn) missingCal.push("bouton Playlist");
+        if (!backBtn) missingCal.push("bouton Retour");
+        if (!nameZone) missingCal.push(`zone Nom du morceau platine ${deck}`);
+        if (missingCal.length > 0) {
+          const msg = `Calibration AutoSync incomplète : ${missingCal.join(", ")}.`;
           log("error", msg);
           setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
           return;
         }
 
-        // The first playlist row is ALWAYS the track currently loaded on the
-        // deck (highlighted in blue by DiscDJ). Its position is fixed by the
-        // DiscDJ layout — deck 1 fills the left half, deck 2 the right half,
-        // and the selected row sits at the top just below the toolbar. We
-        // derive its OCR rect deterministically from the deck id so there is
-        // nothing to calibrate manually.
-        const rowZone: CalibrationRect = firstRowZoneFor(deck);
+        const rowZone: CalibrationRect = nameZone!;
 
         const stepStartedAt: number[] = [];
         const runStartedAt = Date.now();
