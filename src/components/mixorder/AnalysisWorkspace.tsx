@@ -14,6 +14,7 @@ import { useWorkspace, type Track } from "@/lib/workspace-context";
 import { BPM_SOURCES, getSource } from "@/lib/analysis/sources";
 import type { BpmSourceId } from "@/lib/analysis/types";
 import { DiscDJRobotPanel } from "./DiscDJRobotPanel";
+import { DiscDJAccessibilityGate } from "./DiscDJAccessibilityGate";
 
 interface Props {
   onBack: () => void;
@@ -250,7 +251,9 @@ export function AnalysisWorkspace({ onBack }: Props) {
                 </p>
               </div>
             </section>
-            <DiscDJRobotPanel />
+            <DiscDJAccessibilityGate>
+              <DiscDJRobotPanel />
+            </DiscDJAccessibilityGate>
           </>
         )}
 

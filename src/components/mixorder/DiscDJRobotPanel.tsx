@@ -79,6 +79,7 @@ export function DiscDJRobotPanel() {
     testBackButton,
     testNameZone,
     openAccessibilitySettings,
+    checkAccessibility,
   } = useDiscDJRobot();
   const [deckSheetOpen, setDeckSheetOpen] = useState(false);
   const [pendingDeck, setPendingDeck] = useState<DeckId>(1);
@@ -322,10 +323,19 @@ export function DiscDJRobotPanel() {
       </div>
 
       {deckSheetOpen && (
-        <DeckSheet value={pendingDeck} onChange={setPendingDeck} onClose={() => setDeckSheetOpen(false)} onConfirm={() => {
+        <DeckSheet value={pendingDeck} onChange={setPendingDeck} onClose={() => setDeckSheetOpen(false)} onConfirm={async () => {
           const missing = missingCalibrationForStart(state.settings, pendingDeck);
           if (missing.length > 0) {
             alert(`Calibration incomplète — recalibre : ${missing.join(", ")}`);
+            return;
+          }
+          // Final safety net: re-check the accessibility service right before
+          // launching the robot. If the user disabled it since opening the
+          // panel, force them through the gate again.
+          const acc = await checkAccessibility();
+          if (acc.native && !acc.enabled) {
+            try { await openAccessibilitySettings(); } catch { /* ignore */ }
+            alert("Active le service d'accessibilité MixOrder puis reviens pour démarrer le robot.");
             return;
           }
           setDeckSheetOpen(false);

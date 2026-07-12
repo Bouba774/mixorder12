@@ -135,7 +135,12 @@ export interface DiscDJBridge {
   /** Short human label shown in the UI ("Simulé", "AccessibilityService"…). */
   readonly label: string;
   /** Whether this bridge can drive DiscDJ right now on this device. */
-  isReady(): Promise<{ ready: boolean; reason?: string }>;
+  isReady(): Promise<{
+    ready: boolean;
+    reason?: string;
+    accessibilityEnabled?: boolean;
+    discdjInstalled?: boolean;
+  }>;
   /** Bring DiscDJ to the foreground. */
   openApp(): Promise<void>;
   /** Preflight source/orientation/stability check before analysis. */
@@ -182,6 +187,8 @@ export const simulatedBridge: DiscDJBridge = {
   async isReady() {
     return {
       ready: true,
+      accessibilityEnabled: true,
+      discdjInstalled: true,
       reason:
         "Pont simulé — les BPM sont générés pour tester le flux. Fournis les captures annotées pour activer le pont natif DiscDJ.",
     };
@@ -249,7 +256,12 @@ function createNativeBridge(): DiscDJBridge {
     label: "DiscDJ (accessibilité)",
     async isReady() {
       const s = await plugin.isReady();
-      return { ready: s.ready, reason: s.reason };
+      return {
+        ready: s.ready,
+        reason: s.reason,
+        accessibilityEnabled: s.accessibilityEnabled,
+        discdjInstalled: s.discdjInstalled,
+      };
     },
     async openApp() {
       await plugin.openApp();
