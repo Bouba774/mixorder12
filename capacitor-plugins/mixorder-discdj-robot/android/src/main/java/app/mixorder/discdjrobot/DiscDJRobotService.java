@@ -51,7 +51,7 @@ public class DiscDJRobotService extends Service {
 
     // --- Run state (in-memory) ---
     static class TrackItem {
-        String id, path, name;
+        String id, path, name, originalName;
         boolean hasBpm;
     }
 
@@ -70,6 +70,13 @@ public class DiscDJRobotService extends Service {
     private int waitBeforeReadMs = 800;
     private int pressDurationMs = 120;
     private int maxAttempts = 3;
+    private String analysisMode = "auto-sync";
+    private JSONObject playlistButton;
+    private JSONObject backButton;
+    private JSONObject nameZone;
+    private int waitAfterPlaylistOpenMs = 900;
+    private int waitAfterBackMs = 700;
+    private int nameMaxOcrRetries = 3;
 
     private volatile boolean running = false;
     private volatile boolean userPaused = false;
@@ -173,6 +180,7 @@ public class DiscDJRobotService extends Service {
             String payload = intent.getStringExtra("payload");
             JSONObject p = new JSONObject(payload);
             deck = p.optInt("deck", 1);
+            analysisMode = p.optString("analysisMode", "auto-sync");
             index = Math.max(0, p.optInt("startIndex", 0));
             projectFingerprint = p.optString("projectFingerprint", "");
             projectName = p.optString("projectName", "");
@@ -181,10 +189,16 @@ public class DiscDJRobotService extends Service {
             replaceExisting = p.optBoolean("replaceExisting", false);
             waitAfterClickMs = p.optInt("waitAfterClickMs", 1200);
             waitBeforeReadMs = p.optInt("waitBeforeReadMs", 800);
+            waitAfterPlaylistOpenMs = p.optInt("waitAfterPlaylistOpenMs", 900);
+            waitAfterBackMs = p.optInt("waitAfterBackMs", 700);
             pressDurationMs = p.optInt("pressDurationMs", 120);
             maxAttempts = Math.max(1, p.optInt("maxAttempts", 3));
+            nameMaxOcrRetries = Math.max(1, p.optInt("nameMaxOcrRetries", 3));
             nextPoint = p.optJSONObject("nextPoint");
             bpmZone = p.optJSONObject("bpmZone");
+            playlistButton = p.optJSONObject("playlistButton");
+            backButton = p.optJSONObject("backButton");
+            nameZone = p.optJSONObject("nameZone");
             JSONArray arr = p.optJSONArray("tracks");
             if (arr != null) {
                 for (int i = 0; i < arr.length(); i++) {
@@ -193,6 +207,7 @@ public class DiscDJRobotService extends Service {
                     ti.id = t.optString("id");
                     ti.path = t.optString("path");
                     ti.name = t.optString("name");
+                    ti.originalName = t.optString("originalName", ti.name);
                     ti.hasBpm = t.optBoolean("hasBpm", false);
                     tracks.add(ti);
                 }
@@ -277,8 +292,77 @@ public class DiscDJRobotService extends Service {
         updateNotif();
         emit("discdjPhase", jo("phase", phase, "index", index + 1, "total", total));
 
-        // Read BPM with retries.
-        readOnce(0);
+        if ("autosync-name".equals(analysisMode)) readNameCheckedStep(0);
+        else readOnce(0);
+    }
+
+    private void readNameCheckedStep(int attempt) {
+        if (!running || userPaused) return;
+        DiscDJAccessibilityService svc = DiscDJAccessibilityService.getInstance();
+        if (svc == null) { scheduleTick(500); return; }
+        Rect crop = rectFromJson(svc, bpmZone);
+        if (crop == null) { emitLog("error", "Zone BPM invalide."); skipAndAdvance(); return; }
+        final int attemptFinal = attempt;
+        main.postDelayed(() -> svc.readBpmFromScreenshot(crop, discdjPackage, result -> {
+            if (result.bpm == null) {
+                retryNameCheckedStep(attemptFinal, "BPM illisible : " + result.parseReason);
+                return;
+            }
+            final double bpm = Math.round(result.bpm);
+            tapPoint(playlistButton, ok -> {
+                if (!ok) { retryNameCheckedStep(attemptFinal, "Clic Playlist refusé."); return; }
+                main.postDelayed(() -> readNameAndMatch(attemptFinal, bpm, 0), Math.max(250, waitAfterPlaylistOpenMs));
+            });
+        }), Math.max(250, waitBeforeReadMs));
+    }
+
+    private void readNameAndMatch(int attempt, double bpm, int nameAttempt) {
+        if (!running || userPaused) return;
+        DiscDJAccessibilityService svc = DiscDJAccessibilityService.getInstance();
+        if (svc == null) { scheduleTick(500); return; }
+        Rect crop = rectFromJson(svc, nameZone);
+        if (crop == null) { backThenRetryOrSkip(attempt, "Zone Nom invalide."); return; }
+        svc.readBpmFromScreenshot(crop, discdjPackage, result -> {
+            List<String> candidates = buildNameCandidates(result.raw, result.zoneTexts);
+            Match match = resolveMatch(candidates, tracks.get(index));
+            if (match.track != null) {
+                TrackItem t = match.track;
+                lastBpm = bpm;
+                currentName = t.name;
+                emitLog("success", "Morceau " + (index + 1) + "/" + total + " · BPM " + ((int) bpm) + " · « " + (candidates.isEmpty() ? "" : candidates.get(0)) + " » → « " + t.name + " »");
+                try {
+                    JSONObject payload = new JSONObject();
+                    payload.put("trackId", t.id);
+                    payload.put("path", t.path);
+                    payload.put("bpm", bpm);
+                    payload.put("index", index + 1);
+                    payload.put("total", total);
+                    emit("discdjBpm", payload);
+                } catch (JSONException ignored) {}
+                saveState(false, t.path);
+                tapPoint(backButton, ignored -> main.postDelayed(this::advance, Math.max(250, waitAfterBackMs)));
+            } else if (nameAttempt + 1 < nameMaxOcrRetries) {
+                main.postDelayed(() -> readNameAndMatch(attempt, bpm, nameAttempt + 1), 350);
+            } else {
+                String ocr = candidates.isEmpty() ? "" : candidates.get(0);
+                String guess = match.bestTrack != null ? " (meilleur candidat: « " + match.bestTrack.name + " » " + Math.round(match.bestScore * 100) + "%)" : "";
+                backThenRetryOrSkip(attempt, "Aucun morceau MixOrder ne correspond à « " + ocr + " »" + guess + ".");
+            }
+        });
+    }
+
+    private void retryNameCheckedStep(int attempt, String reason) {
+        if (attempt + 1 < maxAttempts) {
+            emitLog("warning", reason + " Nouvelle tentative.");
+            main.postDelayed(() -> readNameCheckedStep(attempt + 1), 500);
+        } else {
+            emitLog("warning", reason + " Morceau marqué à réanalyser.");
+            skipAndAdvance();
+        }
+    }
+
+    private void backThenRetryOrSkip(int attempt, String reason) {
+        tapPoint(backButton, ignored -> main.postDelayed(() -> retryNameCheckedStep(attempt, reason), Math.max(250, waitAfterBackMs)));
     }
 
     private void readOnce(int attempt) {
@@ -351,6 +435,143 @@ public class DiscDJRobotService extends Service {
             if (!ok) emitLog("error", "Clic Next échoué: " + reason);
             scheduleTick(Math.max(400, waitAfterClickMs));
         });
+    }
+
+    private Rect rectFromJson(DiscDJAccessibilityService svc, JSONObject rect) {
+        if (svc == null || rect == null) return null;
+        int[] size = svc.getDisplaySize();
+        Rect crop = DiscDJAccessibilityService.rectFromCanonical(
+                rect.optDouble("x", 0), rect.optDouble("y", 0),
+                rect.optDouble("width", 0), rect.optDouble("height", 0),
+                size[0], size[1]);
+        return DiscDJAccessibilityService.rectFullyVisible(crop, size[0], size[1]) ? crop : null;
+    }
+
+    private interface TapDone { void done(boolean ok); }
+
+    private void tapPoint(JSONObject point, TapDone cb) {
+        DiscDJAccessibilityService svc = DiscDJAccessibilityService.getInstance();
+        if (svc == null || point == null) { cb.done(false); return; }
+        int[] size = svc.getDisplaySize();
+        float[] xy = DiscDJAccessibilityService.pointFromCanonical(
+                (float) point.optDouble("x", 0), (float) point.optDouble("y", 0),
+                size[0], size[1]);
+        svc.tapAt(xy[0], xy[1], pressDurationMs, (ok, reason) -> cb.done(ok));
+    }
+
+    static class Match { TrackItem track; TrackItem bestTrack; double score; double bestScore; }
+
+    private Match resolveMatch(List<String> ocrCandidates, TrackItem expected) {
+        Match out = new Match();
+        if (ocrCandidates == null || ocrCandidates.isEmpty() || expected == null) return out;
+        for (TrackItem t : tracks) {
+            double s = bestTrackScore(ocrCandidates, t);
+            if (s > out.bestScore) { out.bestScore = s; out.bestTrack = t; }
+        }
+        double expectedScore = bestTrackScore(ocrCandidates, expected);
+        if (expectedScore >= 0.50 || (expectedScore >= 0.38 && (out.bestTrack == expected || out.bestScore - expectedScore <= 0.16))) {
+            out.track = expected;
+            out.score = expectedScore;
+        } else if (out.bestTrack != null && out.bestScore >= 0.55) {
+            out.track = out.bestTrack;
+            out.score = out.bestScore;
+        }
+        return out;
+    }
+
+    private static double bestTrackScore(List<String> ocrCandidates, TrackItem t) {
+        double best = 0;
+        for (String c : ocrCandidates) {
+            best = Math.max(best, similarity(c, t.name));
+            best = Math.max(best, similarity(c, t.originalName));
+            best = Math.max(best, similarity(c, fileName(t.path)));
+        }
+        return best;
+    }
+
+    private static List<String> buildNameCandidates(String raw, List<String> zoneTexts) {
+        List<String> out = new ArrayList<>();
+        addCandidate(out, cleanOcrName(raw));
+        if (zoneTexts != null) {
+            StringBuilder joined = new StringBuilder();
+            for (String z : zoneTexts) {
+                addCandidate(out, cleanOcrName(z));
+                if (z != null && !z.trim().isEmpty()) {
+                    if (joined.length() > 0) joined.append(' ');
+                    joined.append(z.trim());
+                }
+            }
+            addCandidate(out, cleanOcrName(joined.toString()));
+        }
+        return out;
+    }
+
+    private static void addCandidate(List<String> out, String s) {
+        if (s == null || s.isEmpty() || out.contains(s)) return;
+        out.add(s);
+    }
+
+    private static String cleanOcrName(String input) {
+        if (input == null) return "";
+        String s = input.replaceAll("[\\p{Cntrl}]+", " ")
+                .replaceAll("[·•●▪■□]", " ")
+                .replaceAll("(?i)\\.(mp3|wav|flac|m4a|aac|ogg|wma|aiff)\\b", "")
+                .replaceAll("(?i)\\bbpm\\s*[:=]?\\s*\\d{2,3}(?:[.,]\\d+)?\\b", " ")
+                .replaceAll("^\\s*\\d{1,4}\\s*[_\\-–—.:]+\\s*", "")
+                .replaceAll("[_\\-–—.·|/\\\\]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        String low = s.toLowerCase();
+        if (low.length() < 2 || low.equals("unknown") || low.contains("playlist") || low.contains("pitch") || low.contains("sync")) return "";
+        return s;
+    }
+
+    private static String normalizeName(String input) {
+        if (input == null) return "";
+        return java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replaceAll("(?i)\\.(mp3|wav|flac|m4a|aac|ogg|wma|aiff)$", "")
+                .replaceAll("(?i)\\b(official|music|video|audio|lyrics?|clip|hd|hq|remaster(?:ed)?|remix|edit|clean|explicit)\\b", " ")
+                .replaceAll("^[\\s\\W_]*(?:\\d{1,4}[\\s._\\-–—]+)+", "")
+                .replaceAll("[_\\-–—.·|/\\\\]+", " ")
+                .replaceAll("[^\\p{L}\\p{N}\\s]", " ")
+                .replaceAll("\\s+", " ")
+                .trim()
+                .toLowerCase();
+    }
+
+    private static double similarity(String a, String b) {
+        String na = normalizeName(a), nb = normalizeName(b);
+        if (na.isEmpty() || nb.isEmpty()) return 0;
+        if (na.equals(nb)) return 1;
+        double dice = dice(na, nb);
+        String longer = na.length() >= nb.length() ? na : nb;
+        String shorter = na.length() >= nb.length() ? nb : na;
+        if (shorter.length() >= 4 && longer.contains(shorter)) dice = Math.min(1, dice + 0.08);
+        return dice;
+    }
+
+    private static double dice(String a, String b) {
+        if (a.length() < 2 || b.length() < 2) return 0;
+        java.util.Map<String, Integer> m = new java.util.HashMap<>();
+        for (int i = 0; i < a.length() - 1; i++) {
+            String g = a.substring(i, i + 2);
+            m.put(g, m.getOrDefault(g, 0) + 1);
+        }
+        int inter = 0;
+        for (int i = 0; i < b.length() - 1; i++) {
+            String g = b.substring(i, i + 2);
+            Integer c = m.get(g);
+            if (c != null && c > 0) { inter++; m.put(g, c - 1); }
+        }
+        return (2.0 * inter) / ((a.length() - 1) + (b.length() - 1));
+    }
+
+    private static String fileName(String path) {
+        if (path == null) return "";
+        int a = path.lastIndexOf('/'), b = path.lastIndexOf('\\');
+        int i = Math.max(a, b);
+        return i >= 0 ? path.substring(i + 1) : path;
     }
 
     private void finishRun() {
