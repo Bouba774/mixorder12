@@ -148,6 +148,11 @@ export interface DiscDJBridge {
     reason?: string;
     accessibilityEnabled?: boolean;
     discdjInstalled?: boolean;
+    foreground?: boolean;
+    orientation?: "landscape" | "portrait";
+    displayWidth?: number;
+    displayHeight?: number;
+    windowPackage?: string | null;
   }>;
   /** Bring DiscDJ to the foreground. */
   openApp(): Promise<void>;
@@ -269,6 +274,11 @@ function createNativeBridge(): DiscDJBridge {
         reason: s.reason,
         accessibilityEnabled: s.accessibilityEnabled,
         discdjInstalled: s.discdjInstalled,
+        foreground: s.foreground,
+        orientation: s.orientation,
+        displayWidth: s.displayWidth,
+        displayHeight: s.displayHeight,
+        windowPackage: s.windowPackage ?? null,
       };
     },
     async openApp() {
@@ -367,7 +377,17 @@ interface NativeReading {
   endOfPlaylist?: boolean;
 }
 interface NativeDiscDJRobot {
-  isReady(): Promise<{ ready: boolean; reason?: string; discdjInstalled: boolean; accessibilityEnabled: boolean }>;
+  isReady(): Promise<{
+    ready: boolean;
+    reason?: string;
+    discdjInstalled: boolean;
+    accessibilityEnabled: boolean;
+    foreground?: boolean;
+    orientation?: "landscape" | "portrait";
+    displayWidth?: number;
+    displayHeight?: number;
+    windowPackage?: string | null;
+  }>;
   openApp(): Promise<void>;
   checkReady(): Promise<{ ok: boolean; reason?: string; sourceOk?: boolean; orientationOk?: boolean; stable?: boolean; displayWidth?: number; displayHeight?: number }>;
   openAccessibilitySettings(): Promise<void>;

@@ -713,7 +713,11 @@ export function useDiscDJRobot() {
               doneInRun: processedRef.current.size,
             }));
 
-            await returnToMainStrict(bridge, deck, backBtn!, settings);
+            if (!(await returnToMainStrict(bridge, deck, backBtn!, settings))) {
+              log("warning", `${progress} Retour écran principal non confirmé — nouvelle tentative pour éviter tout décalage.`);
+              matched = null;
+              continue;
+            }
             break;
           }
 
@@ -1586,17 +1590,18 @@ async function returnToMainStrict(
   deck: DeckId,
   backBtn: CalibrationPoint,
   settings: DiscDJRobotSettings,
-): Promise<void> {
+): Promise<boolean> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
       await bgSleep(bridge, settings.waitAfterBackMs);
-      return;
+      return true;
     } catch {
       await bgSleep(bridge, 350);
     }
   }
   await bgSleep(bridge, settings.waitAfterBackMs);
+  return false;
 }
 
 function resolveAutoSyncNameMatch(

@@ -220,16 +220,7 @@ public class DiscDJRobotService extends Service {
         try {
             waitOpen = new JSONObject(intent.getStringExtra("payload")).optInt("waitOnOpenMs", 1000);
         } catch (Exception ignored) {}
-        // Bring DiscDJ up
-        if (discdjPackage != null) {
-            try {
-                Intent launch = getPackageManager().getLaunchIntentForPackage(discdjPackage);
-                if (launch != null) {
-                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                    startActivity(launch);
-                }
-            } catch (Exception ignored) {}
-        }
+        openDiscDJ();
         // Small delay before the first read for DiscDJ to fully load.
         if (waitOpen > 0) {
             try { Thread.sleep(Math.min(2500, waitOpen)); } catch (InterruptedException ignored) {}
@@ -260,13 +251,14 @@ public class DiscDJRobotService extends Service {
         if (!snap.foregroundMatches || !snap.landscape) {
             if (!visibilityPaused) {
                 visibilityPaused = true;
-                phase = "paused";
+                phase = snap.foregroundMatches ? "paused" : "opening";
                 emitLog("warning", snap.foregroundMatches
                         ? "DiscDJ n'est pas en paysage — analyse en pause."
-                        : "DiscDJ n'est plus au premier plan — analyse en pause.");
+                        : "DiscDJ n'est plus au premier plan — réouverture automatique.");
                 emit("discdjVisibilityPaused", jo("visible", false));
                 updateNotif();
             }
+            if (!snap.foregroundMatches) openDiscDJ();
             scheduleTick(1500);
             return;
         }
@@ -340,7 +332,10 @@ public class DiscDJRobotService extends Service {
                     emit("discdjBpm", payload);
                 } catch (JSONException ignored) {}
                 saveState(false, t.path);
-                tapPoint(backButton, ignored -> main.postDelayed(this::advance, Math.max(250, waitAfterBackMs)));
+                returnToMainThen(ok -> {
+                    if (ok) main.postDelayed(this::advance, Math.max(250, waitAfterBackMs));
+                    else retryNameCheckedStep(attempt, "Retour écran principal non confirmé.");
+                });
             } else if (nameAttempt + 1 < nameMaxOcrRetries) {
                 main.postDelayed(() -> readNameAndMatch(attempt, bpm, nameAttempt + 1), 350);
             } else {
@@ -362,7 +357,7 @@ public class DiscDJRobotService extends Service {
     }
 
     private void backThenRetryOrSkip(int attempt, String reason) {
-        tapPoint(backButton, ignored -> main.postDelayed(() -> retryNameCheckedStep(attempt, reason), Math.max(250, waitAfterBackMs)));
+        returnToMainThen(ignored -> main.postDelayed(() -> retryNameCheckedStep(attempt, reason), Math.max(250, waitAfterBackMs)));
     }
 
     private void readOnce(int attempt) {
@@ -457,6 +452,24 @@ public class DiscDJRobotService extends Service {
                 (float) point.optDouble("x", 0), (float) point.optDouble("y", 0),
                 size[0], size[1]);
         svc.tapAt(xy[0], xy[1], pressDurationMs, (ok, reason) -> cb.done(ok));
+    }
+
+    private void returnToMainThen(TapDone cb) {
+        tapPoint(backButton, ok -> {
+            if (ok) { cb.done(true); return; }
+            main.postDelayed(() -> tapPoint(backButton, cb), 350);
+        });
+    }
+
+    private void openDiscDJ() {
+        if (discdjPackage == null) return;
+        try {
+            Intent launch = getPackageManager().getLaunchIntentForPackage(discdjPackage);
+            if (launch != null) {
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(launch);
+            }
+        } catch (Exception ignored) {}
     }
 
     static class Match { TrackItem track; TrackItem bestTrack; double score; double bestScore; }
