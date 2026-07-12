@@ -91,6 +91,13 @@ export interface DiscDJRobotPlugin {
     point?: DiscDJCalibrationPoint | null;
     pressDurationMs?: number;
   }): Promise<void>;
+  startBackgroundRun?(options: unknown): Promise<void>;
+  pauseBackgroundRun?(): Promise<void>;
+  resumeBackgroundRun?(): Promise<void>;
+  stopBackgroundRun?(): Promise<void>;
+  clearBackgroundState?(): Promise<void>;
+  getBackgroundStatus?(): Promise<unknown>;
+  addListener?(name: string, cb: (payload: unknown) => void): { remove: () => Promise<void> } | undefined;
   /** Native-backed sleep — not throttled when MixOrder is backgrounded. */
   sleep(options: { ms: number }): Promise<void>;
 }

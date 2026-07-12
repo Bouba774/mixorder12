@@ -53,6 +53,8 @@ public class DiscDJAccessibilityService extends AccessibilityService {
             Pattern.compile("BPM\\s*[:：]?\\s*(\\d{2,3}(?:[.,]\\d+)?)", Pattern.CASE_INSENSITIVE);
     static final Pattern BPM_LOOSE_PATTERN =
             Pattern.compile("(?<![\\d.])(\\d{2,3}(?:[.,]\\d+)?)(?![\\d.])");
+    static final Pattern BPM_DIGIT_RUN_PATTERN =
+            Pattern.compile("\\d{2,3}");
     private static final Pattern DURATION_PATTERN =
             Pattern.compile("\\b\\d{1,2}:\\d{2}(?::\\d{2})?\\b");
 
@@ -560,45 +562,76 @@ public class DiscDJAccessibilityService extends AccessibilityService {
     public static Double parseBestBpm(List<String> texts) {
 
         if (texts == null || texts.isEmpty()) return null;
-        // Vote-based parsing: collect every plausible BPM candidate from
-        // both labelled ("BPM: 150") and loose matches, rank them, and
-        // prefer 3-digit values when they appear at least as often as the
-        // 2-digit ones. This fixes the "150 read as 50" regression where a
-        // leading digit gets dropped by one OCR variant.
+        // OCR variants can disagree by one digit (e.g. 127 vs 121). Keep the
+        // parser conservative: labelled/clean BPM-looking lines win, loose UI
+        // noise contributes little, and near-ties prefer the candidate that is
+        // supported by cleaner text instead of just the highest number.
         java.util.Map<Integer, Integer> votes = new java.util.HashMap<>();
+        java.util.Map<Integer, Integer> cleanVotes = new java.util.HashMap<>();
         for (String t : texts) {
             if (t == null) continue;
+            String normalized = normalizeOcrDigits(t);
+            boolean cleanNumeric = normalized.matches("\\s*(?:bpm\\s*[:：]?)?\\s*\\d{2,3}(?:[.,]\\d+)?\\s*");
             Matcher lm = BPM_LABELED_PATTERN.matcher(t);
             while (lm.find()) {
                 Double v = tryParseBpm(lm.group(1));
                 if (v != null) {
                     int k = (int) Math.round(v);
-                    votes.merge(k, 3, Integer::sum); // labelled → heavy weight
+                    votes.merge(k, 5, Integer::sum); // labelled → heavy weight
+                    cleanVotes.merge(k, 3, Integer::sum);
                 }
             }
-            Matcher m2 = BPM_LOOSE_PATTERN.matcher(t);
+            Matcher m2 = BPM_LOOSE_PATTERN.matcher(normalized);
             while (m2.find()) {
                 Double v = tryParseBpm(m2.group(1));
                 if (v != null) {
                     int k = (int) Math.round(v);
-                    int weight = looksLikeBpmText(t) ? 2 : 1;
-                    if (k >= 100) weight += 1; // favor 3-digit BPMs
+                    int weight = looksLikeBpmText(t) ? 3 : 1;
+                    if (cleanNumeric) weight += 3;
+                    if (k >= 100) weight += 1;
                     votes.merge(k, weight, Integer::sum);
+                    if (cleanNumeric) cleanVotes.merge(k, 2, Integer::sum);
                 }
             }
         }
         if (votes.isEmpty()) return null;
-        int bestKey = -1;
-        int bestScore = -1;
+        int bestKey = -1, runnerKey = -1;
+        int bestScore = -1, runnerScore = -1;
         for (java.util.Map.Entry<Integer, Integer> e : votes.entrySet()) {
             int score = e.getValue();
             int k = e.getKey();
-            if (score > bestScore || (score == bestScore && k > bestKey)) {
+            int clean = cleanVotes.getOrDefault(k, 0);
+            int bestClean = cleanVotes.getOrDefault(bestKey, 0);
+            if (score > bestScore || (score == bestScore && clean > bestClean) || (score == bestScore && clean == bestClean && k > bestKey)) {
+                runnerScore = bestScore;
+                runnerKey = bestKey;
                 bestScore = score;
                 bestKey = k;
+            } else if (score > runnerScore) {
+                runnerScore = score;
+                runnerKey = k;
             }
         }
+
+        // If two values are close (121 vs 127), require clean support for the
+        // winner. Otherwise return null so the robot retries instead of saving
+        // a plausible but wrong BPM.
+        if (runnerKey >= 40 && Math.abs(bestKey - runnerKey) <= 8 && runnerScore > 0 && bestScore - runnerScore <= 2) {
+            int bestClean = cleanVotes.getOrDefault(bestKey, 0);
+            int runnerClean = cleanVotes.getOrDefault(runnerKey, 0);
+            if (bestClean <= runnerClean && bestScore < runnerScore + 3) return null;
+        }
         return bestKey >= 40 && bestKey <= 240 ? (double) bestKey : null;
+    }
+
+    private static String normalizeOcrDigits(String input) {
+        if (input == null) return "";
+        return input
+                .replace('O', '0').replace('o', '0')
+                .replace('I', '1').replace('l', '1').replace('|', '1')
+                .replace('S', '5').replace('s', '5')
+                .replace('B', '8')
+                .trim();
     }
 
 

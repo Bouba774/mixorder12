@@ -82,10 +82,12 @@ export interface BackgroundRunTrack {
   id: string;
   path: string;
   name: string;
+  originalName?: string;
   hasBpm: boolean;
 }
 
 export interface BackgroundRunOptions {
+  analysisMode?: "auto-sync" | "autosync-name";
   deck: DeckId;
   startIndex: number;
   projectFingerprint: string;
@@ -93,13 +95,19 @@ export interface BackgroundRunOptions {
   tracks: BackgroundRunTrack[];
   nextPoint: CalibrationPoint | null;
   bpmZone: CalibrationRect | null;
+  playlistButton?: CalibrationPoint | null;
+  backButton?: CalibrationPoint | null;
+  nameZone?: CalibrationRect | null;
   skipAlreadyBpm: boolean;
   replaceExisting: boolean;
   waitOnOpenMs: number;
   waitBeforeReadMs: number;
   waitAfterClickMs: number;
+  waitAfterPlaylistOpenMs?: number;
+  waitAfterBackMs?: number;
   pressDurationMs: number;
   maxAttempts: number;
+  nameMaxOcrRetries?: number;
 }
 
 export interface BackgroundStatus {
@@ -140,6 +148,11 @@ export interface DiscDJBridge {
     reason?: string;
     accessibilityEnabled?: boolean;
     discdjInstalled?: boolean;
+    foreground?: boolean;
+    orientation?: "landscape" | "portrait";
+    displayWidth?: number;
+    displayHeight?: number;
+    windowPackage?: string | null;
   }>;
   /** Bring DiscDJ to the foreground. */
   openApp(): Promise<void>;
@@ -261,6 +274,11 @@ function createNativeBridge(): DiscDJBridge {
         reason: s.reason,
         accessibilityEnabled: s.accessibilityEnabled,
         discdjInstalled: s.discdjInstalled,
+        foreground: s.foreground,
+        orientation: s.orientation,
+        displayWidth: s.displayWidth,
+        displayHeight: s.displayHeight,
+        windowPackage: s.windowPackage ?? null,
       };
     },
     async openApp() {
@@ -359,7 +377,17 @@ interface NativeReading {
   endOfPlaylist?: boolean;
 }
 interface NativeDiscDJRobot {
-  isReady(): Promise<{ ready: boolean; reason?: string; discdjInstalled: boolean; accessibilityEnabled: boolean }>;
+  isReady(): Promise<{
+    ready: boolean;
+    reason?: string;
+    discdjInstalled: boolean;
+    accessibilityEnabled: boolean;
+    foreground?: boolean;
+    orientation?: "landscape" | "portrait";
+    displayWidth?: number;
+    displayHeight?: number;
+    windowPackage?: string | null;
+  }>;
   openApp(): Promise<void>;
   checkReady(): Promise<{ ok: boolean; reason?: string; sourceOk?: boolean; orientationOk?: boolean; stable?: boolean; displayWidth?: number; displayHeight?: number }>;
   openAccessibilitySettings(): Promise<void>;
