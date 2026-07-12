@@ -619,7 +619,7 @@ export function useDiscDJRobot() {
         const toVerify: NonNullable<RunRecap["toVerify"]> = [];
         const threshold = settings.nameMatchThreshold;
         const total = ordered.length - startIdx;
-        const perStepMaxRetries = 3;
+        const perStepMaxRetries = Math.max(1, settings.nameMaxOcrRetries);
         setState((s) => ({ ...s, totalRun: total }));
 
         for (let i = startIdx; i < ordered.length; i++) {
@@ -671,7 +671,12 @@ export function useDiscDJRobot() {
             lastOcr = cleaned;
             if (!cleaned) {
               log("warning", `${progress} Nom illisible — retour et nouvelle tentative.`);
-              await returnToMainStrict(bridge, deck, backBtn!, settings);
+              if (!(await returnToMainStrict(bridge, deck, backBtn!, settings))) {
+                const msg = `${progress} Retour écran principal refusé — analyse arrêtée pour éviter un décalage.`;
+                log("error", msg);
+                setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
+                return;
+              }
               continue;
             }
 
@@ -687,7 +692,12 @@ export function useDiscDJRobot() {
                 ? ` (meilleur candidat: « ${match.best.track.name} » ${(match.best.score * 100).toFixed(0)}%)`
                 : "";
               log("warning", `${progress} Aucun morceau MixOrder ne correspond à « ${cleaned} »${dbg}.`);
-              await returnToMainStrict(bridge, deck, backBtn!, settings);
+              if (!(await returnToMainStrict(bridge, deck, backBtn!, settings))) {
+                const msg = `${progress} Retour écran principal refusé — analyse arrêtée pour éviter un décalage.`;
+                log("error", msg);
+                setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
+                return;
+              }
               continue;
             }
 
@@ -714,9 +724,10 @@ export function useDiscDJRobot() {
             }));
 
             if (!(await returnToMainStrict(bridge, deck, backBtn!, settings))) {
-              log("warning", `${progress} Retour écran principal non confirmé — nouvelle tentative pour éviter tout décalage.`);
-              matched = null;
-              continue;
+              const msg = `${progress} Retour écran principal refusé — BPM enregistré, analyse arrêtée pour éviter un décalage.`;
+              log("error", msg);
+              setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
+              return;
             }
             break;
           }
@@ -737,7 +748,12 @@ export function useDiscDJRobot() {
             );
             saveSnapshot(fingerprint, snapshot);
             // Make sure we're back on main before tapping Next.
-            await returnToMainStrict(bridge, deck, backBtn!, settings);
+            if (!(await returnToMainStrict(bridge, deck, backBtn!, settings))) {
+              const msg = `${progress} Retour écran principal refusé — analyse arrêtée pour éviter un décalage.`;
+              log("error", msg);
+              setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
+              return;
+            }
           }
 
           if (i + 1 >= ordered.length) break;
