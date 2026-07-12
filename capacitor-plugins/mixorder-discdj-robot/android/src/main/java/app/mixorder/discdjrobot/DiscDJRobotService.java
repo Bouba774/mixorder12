@@ -422,16 +422,14 @@ public class DiscDJRobotService extends Service {
         if (index >= total) { finishRun(); return; }
 
         // Tap Next then wait for next track to load.
-        DiscDJAccessibilityService svc = DiscDJAccessibilityService.getInstance();
-        if (svc == null || nextPoint == null) { scheduleTick(500); return; }
-        int[] size = svc.getDisplaySize();
-        float[] xy = DiscDJAccessibilityService.pointFromCanonical(
-                (float) nextPoint.optDouble("x", 0), (float) nextPoint.optDouble("y", 0),
-                size[0], size[1]);
         phase = "advancing";
         emit("discdjPhase", jo("phase", phase));
-        svc.tapAt(xy[0], xy[1], pressDurationMs, (ok, reason) -> {
-            if (!ok) emitLog("error", "Clic Next échoué: " + reason);
+        tapPoint(nextPoint, ok -> {
+            if (!ok) {
+                emitLog("warning", "Clic Next non envoyé — DiscDJ sera rouvert avant de continuer.");
+                scheduleTick(1500);
+                return;
+            }
             scheduleTick(Math.max(400, waitAfterClickMs));
         });
     }
