@@ -35,7 +35,7 @@ import {
   markRun,
 } from "./persistence";
 import type { AnalysisSnapshot } from "./types";
-import { findBestMatch, normalizeTrackName } from "./name-normalize";
+import { findBestMatch, normalizeTrackName, similarity } from "./name-normalize";
 
 /**
  * DiscDJ analysis robot — headless orchestrator.
@@ -502,19 +502,34 @@ export function useDiscDJRobot() {
       // ---------- BACKGROUND (Foreground Service) DELEGATION ----------
       if (
         settings.runInBackground &&
-        settings.analysisMode === "auto-sync" &&
+        (settings.analysisMode === "auto-sync" || settings.analysisMode === "autosync-name") &&
         bridge.startBackgroundRun
       ) {
         const cal = getDeckCalibration(settings, deck);
+        const nameZone = deck === 1 ? settings.calibration.nameZoneDeck1 : settings.calibration.nameZoneDeck2;
+        if (settings.analysisMode === "autosync-name") {
+          const missingCal: string[] = [];
+          if (!settings.calibration.playlistButton) missingCal.push("bouton Playlist");
+          if (!settings.calibration.backButton) missingCal.push("bouton Retour");
+          if (!nameZone) missingCal.push(`zone Nom du morceau platine ${deck}`);
+          if (missingCal.length > 0) {
+            const msg = `Calibration AutoSync incomplète : ${missingCal.join(", ")}.`;
+            log("error", msg);
+            setState((s) => ({ ...s, phase: "error", errorMessage: msg }));
+            return;
+          }
+        }
         const bgTracks = ordered.slice(startIdx).map((t) => ({
           id: t.id,
           path: t.path,
           name: t.name,
+          originalName: t.originalName,
           hasBpm: t.bpm != null,
         }));
         try {
           backgroundRunRef.current = true;
           await bridge.startBackgroundRun({
+            analysisMode: settings.analysisMode,
             deck,
             startIndex: 0,
             projectFingerprint: fingerprint,
@@ -522,13 +537,19 @@ export function useDiscDJRobot() {
             tracks: bgTracks,
             nextPoint: cal.next,
             bpmZone: cal.bpmZone,
+            playlistButton: settings.analysisMode === "autosync-name" ? settings.calibration.playlistButton : null,
+            backButton: settings.analysisMode === "autosync-name" ? settings.calibration.backButton : null,
+            nameZone: settings.analysisMode === "autosync-name" ? nameZone : null,
             skipAlreadyBpm,
             replaceExisting,
             waitOnOpenMs: settings.waitOnOpenMs,
             waitBeforeReadMs: settings.waitBeforeReadMs,
             waitAfterClickMs: settings.waitAfterClickMs,
+            waitAfterPlaylistOpenMs: settings.waitAfterPlaylistOpenMs,
+            waitAfterBackMs: settings.waitAfterBackMs,
             pressDurationMs: settings.pressDurationMs,
             maxAttempts: settings.maxAttempts,
+            nameMaxOcrRetries: settings.nameMaxOcrRetries,
           });
           log("success", "Service d'arrière-plan démarré — l'analyse continue même si MixOrder est fermé.");
           setState((s) => ({ ...s, phase: "reading" }));
@@ -645,39 +666,37 @@ export function useDiscDJRobot() {
             await ensureDiscDJForeground(bridge, log);
 
             // 4. OCR the calibrated name zone.
-            const { cleaned } = await readAndCleanNameOnce(bridge, deck, nameZone!);
+            const nameRead = await readAndCleanNameOnce(bridge, deck, nameZone!);
+            const { cleaned } = nameRead;
             lastOcr = cleaned;
             if (!cleaned) {
               log("warning", `${progress} Nom illisible — retour et nouvelle tentative.`);
-              await returnToMain(bridge, deck, backBtn!, settings);
+              await returnToMainStrict(bridge, deck, backBtn!, settings);
               continue;
             }
 
-            // 5. Match against the imported library (compare against both
-            //    normalized display name and the original filename — DiscDJ
-            //    often shows the filename verbatim, MixOrder may have
-            //    cleaned it up on import).
-            const match = findBestMatch<Track>(
-              cleaned,
-              ordered,
-              (t) => [t.name, t.originalName].filter(Boolean) as string[],
-              { threshold },
-            );
-            if (!match.confident || !match.best) {
+            // 5. Match against the imported library. Because AutoSync is an
+            //    ordered workflow, the expected MixOrder row is allowed to
+            //    resolve OCR ambiguity when its name is compatible. This
+            //    prevents false “aucun morceau” stops on partial/scrolling OCR
+            //    while still falling back to a global match when the playlist
+            //    is actually offset.
+            const match = resolveAutoSyncNameMatch(nameRead.candidates, ordered, ordered[i], threshold);
+            if (!match.track) {
               const dbg = match.best
-                ? ` (meilleur candidat: « ${match.best.item.name} » ${(match.best.score * 100).toFixed(0)}%)`
+                ? ` (meilleur candidat: « ${match.best.track.name} » ${(match.best.score * 100).toFixed(0)}%)`
                 : "";
               log("warning", `${progress} Aucun morceau MixOrder ne correspond à « ${cleaned} »${dbg}.`);
-              await returnToMain(bridge, deck, backBtn!, settings);
+              await returnToMainStrict(bridge, deck, backBtn!, settings);
               continue;
             }
 
             // 6. Persist BPM immediately, then go back to main.
-            matched = match.best.item;
+            matched = match.track;
             matchedBpm = bpm;
             setTrackAnalysis(matched.id, { bpm }, "discdj-auto");
             processedRef.current.add(matched.id);
-            foundBpms.push({ index: i + 1, name: matched.name, bpm, ocrName: cleaned, score: match.best.score });
+            foundBpms.push({ index: i + 1, name: matched.name, bpm, ocrName: cleaned, score: match.score });
             snapshot = markRun(
               snapshot ?? { v: 1, name: p.name, tracks: {} },
               p.name,
@@ -694,7 +713,7 @@ export function useDiscDJRobot() {
               doneInRun: processedRef.current.size,
             }));
 
-            await returnToMain(bridge, deck, backBtn!, settings);
+            await returnToMainStrict(bridge, deck, backBtn!, settings);
             break;
           }
 
@@ -714,7 +733,7 @@ export function useDiscDJRobot() {
             );
             saveSnapshot(fingerprint, snapshot);
             // Make sure we're back on main before tapping Next.
-            await returnToMain(bridge, deck, backBtn!, settings);
+            await returnToMainStrict(bridge, deck, backBtn!, settings);
           }
 
           if (i + 1 >= ordered.length) break;
@@ -1562,6 +1581,64 @@ async function returnToMain(
   await bgSleep(bridge, settings.waitAfterBackMs);
 }
 
+async function returnToMainStrict(
+  bridge: DiscDJBridge,
+  deck: DeckId,
+  backBtn: CalibrationPoint,
+  settings: DiscDJRobotSettings,
+): Promise<void> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await bridge.tapNext(deck, { point: backBtn, pressDurationMs: settings.pressDurationMs });
+      await bgSleep(bridge, settings.waitAfterBackMs);
+      return;
+    } catch {
+      await bgSleep(bridge, 350);
+    }
+  }
+  await bgSleep(bridge, settings.waitAfterBackMs);
+}
+
+function resolveAutoSyncNameMatch(
+  ocrCandidates: string[],
+  library: Track[],
+  expected: Track,
+  threshold: number,
+): { track: Track | null; score: number; best: { track: Track; score: number } | null } {
+  const candidates = Array.from(new Set(ocrCandidates.map((c) => c.trim()).filter(Boolean)));
+  let bestGlobal: { track: Track; score: number; confident: boolean } | null = null;
+
+  for (const candidate of candidates) {
+    const m = findBestMatch<Track>(candidate, library, trackNameVariants, { threshold, ambiguityGap: 0.04 });
+    if (m.best && (!bestGlobal || m.best.score > bestGlobal.score)) {
+      bestGlobal = { track: m.best.item, score: m.best.score, confident: m.confident };
+    }
+  }
+
+  const expectedScore = Math.max(
+    0,
+    ...candidates.flatMap((candidate) => trackNameVariants(expected).map((name) => similarity(candidate, name))),
+  );
+
+  if (
+    expectedScore >= Math.min(0.5, threshold) ||
+    (expectedScore >= 0.38 && (!bestGlobal || bestGlobal.track.id === expected.id || bestGlobal.score - expectedScore <= 0.16))
+  ) {
+    return { track: expected, score: expectedScore, best: bestGlobal ? { track: bestGlobal.track, score: bestGlobal.score } : null };
+  }
+
+  if (bestGlobal?.confident) {
+    return { track: bestGlobal.track, score: bestGlobal.score, best: { track: bestGlobal.track, score: bestGlobal.score } };
+  }
+
+  return { track: null, score: 0, best: bestGlobal ? { track: bestGlobal.track, score: bestGlobal.score } : null };
+}
+
+function trackNameVariants(track: Track): string[] {
+  const pathName = track.path.split(/[\\/]/).pop() ?? track.path;
+  return Array.from(new Set([track.name, track.originalName, pathName, pathName.replace(/\.[^.]+$/, "")].filter(Boolean)));
+}
+
 /**
  * Deterministic OCR rect for the first (selected/blue) row of the DiscDJ
  * playlist. DiscDJ splits the playlist screen in half — deck 1 on the left,
@@ -1646,7 +1723,7 @@ export async function readAndCleanNameOnce(
   bridge: DiscDJBridge,
   deck: DeckId,
   rowZone: import("./discdj-settings").CalibrationRect,
-): Promise<{ raw: string; cleaned: string; zoneTexts: string[] }> {
+): Promise<{ raw: string; cleaned: string; zoneTexts: string[]; candidates: string[] }> {
   let raw = "";
   let zoneTexts: string[] = [];
   try {
@@ -1656,7 +1733,20 @@ export async function readAndCleanNameOnce(
     // lose the second half of a wrapped name; fall back to raw.
     raw = zoneTexts.length > 0 ? zoneTexts.join(" ") : (r.raw ?? "");
   } catch { /* swallow — caller retries */ }
-  return { raw, cleaned: cleanOcrText(raw), zoneTexts };
+  const candidates = buildOcrNameCandidates(raw, zoneTexts);
+  return { raw, cleaned: candidates[0] ?? "", zoneTexts, candidates };
+}
+
+function buildOcrNameCandidates(raw: string, zoneTexts: string[]): string[] {
+  const chunks = [
+    raw,
+    ...zoneTexts,
+    zoneTexts.join(" "),
+    zoneTexts.slice(0, 2).join(" "),
+    zoneTexts.slice(-2).join(" "),
+  ];
+  const cleaned = chunks.map(cleanOcrText).filter(Boolean);
+  return Array.from(new Set(cleaned)).sort((a, b) => normalizeTrackName(b).length - normalizeTrackName(a).length);
 }
 
 /**

@@ -82,10 +82,12 @@ export interface BackgroundRunTrack {
   id: string;
   path: string;
   name: string;
+  originalName?: string;
   hasBpm: boolean;
 }
 
 export interface BackgroundRunOptions {
+  analysisMode?: "auto-sync" | "autosync-name";
   deck: DeckId;
   startIndex: number;
   projectFingerprint: string;
@@ -93,13 +95,19 @@ export interface BackgroundRunOptions {
   tracks: BackgroundRunTrack[];
   nextPoint: CalibrationPoint | null;
   bpmZone: CalibrationRect | null;
+  playlistButton?: CalibrationPoint | null;
+  backButton?: CalibrationPoint | null;
+  nameZone?: CalibrationRect | null;
   skipAlreadyBpm: boolean;
   replaceExisting: boolean;
   waitOnOpenMs: number;
   waitBeforeReadMs: number;
   waitAfterClickMs: number;
+  waitAfterPlaylistOpenMs?: number;
+  waitAfterBackMs?: number;
   pressDurationMs: number;
   maxAttempts: number;
+  nameMaxOcrRetries?: number;
 }
 
 export interface BackgroundStatus {
