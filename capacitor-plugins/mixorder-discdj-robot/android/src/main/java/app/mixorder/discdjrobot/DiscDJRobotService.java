@@ -336,7 +336,7 @@ public class DiscDJRobotService extends Service {
                 saveState(false, t.path);
                 returnToMainThen(ok -> {
                     if (ok) main.postDelayed(this::advance, Math.max(250, waitAfterBackMs));
-                    else retryNameCheckedStep(attempt, "Retour écran principal non confirmé.");
+                    else stopWithError("Retour écran principal non confirmé — analyse arrêtée pour éviter un décalage.");
                 });
             } else if (nameAttempt + 1 < nameMaxOcrRetries) {
                 main.postDelayed(() -> readNameAndMatch(attempt, bpm, nameAttempt + 1), 350);
@@ -359,7 +359,10 @@ public class DiscDJRobotService extends Service {
     }
 
     private void backThenRetryOrSkip(int attempt, String reason) {
-        returnToMainThen(ignored -> main.postDelayed(() -> retryNameCheckedStep(attempt, reason), Math.max(250, waitAfterBackMs)));
+        returnToMainThen(ok -> {
+            if (ok) main.postDelayed(() -> retryNameCheckedStep(attempt, reason), Math.max(250, waitAfterBackMs));
+            else stopWithError("Retour écran principal non confirmé — analyse arrêtée pour éviter un décalage.");
+        });
     }
 
     private void readOnce(int attempt) {
@@ -628,6 +631,17 @@ public class DiscDJRobotService extends Service {
         emitLog("warning", userInitiated ? "Analyse arrêtée par l'utilisateur." : "Analyse arrêtée.");
         saveState(true, null);
         emit("discdjPhase", jo("phase", phase));
+        stopForeground(true);
+        stopSelf();
+    }
+
+    private void stopWithError(String message) {
+        running = false;
+        phase = "paused";
+        emitLog("error", message);
+        saveState(true, null);
+        emit("discdjPhase", jo("phase", phase));
+        updateNotif();
         stopForeground(true);
         stopSelf();
     }
