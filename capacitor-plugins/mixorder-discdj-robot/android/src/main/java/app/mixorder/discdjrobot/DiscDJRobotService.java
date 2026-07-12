@@ -294,13 +294,15 @@ public class DiscDJRobotService extends Service {
         if (svc == null) { scheduleTick(500); return; }
         Rect crop = rectFromJson(svc, bpmZone);
         if (crop == null) { emitLog("error", "Zone BPM invalide."); skipAndAdvance(); return; }
+        final Double nodeBpm = nodeBpmForCrop(svc, crop);
         final int attemptFinal = attempt;
         main.postDelayed(() -> svc.readBpmFromScreenshot(crop, discdjPackage, result -> {
-            if (result.bpm == null) {
+            Double parsedBpm = nodeBpm != null ? nodeBpm : result.bpm;
+            if (parsedBpm == null) {
                 retryNameCheckedStep(attemptFinal, "BPM illisible : " + result.parseReason);
                 return;
             }
-            final double bpm = Math.round(result.bpm);
+            final double bpm = Math.round(parsedBpm);
             tapPoint(playlistButton, ok -> {
                 if (!ok) { retryNameCheckedStep(attemptFinal, "Clic Playlist refusé."); return; }
                 main.postDelayed(() -> readNameAndMatch(attemptFinal, bpm, 0), Math.max(250, waitAfterPlaylistOpenMs));
@@ -379,17 +381,19 @@ public class DiscDJRobotService extends Service {
             skipAndAdvance();
             return;
         }
+        final Double nodeBpm = nodeBpmForCrop(svc, crop);
         final int attemptFinal = attempt;
         svc.readBpmFromScreenshot(crop, discdjPackage, result -> {
-            if (result.bpm != null) {
-                lastBpm = result.bpm;
+            Double parsedBpm = nodeBpm != null ? nodeBpm : result.bpm;
+            if (parsedBpm != null) {
+                lastBpm = parsedBpm;
                 TrackItem t = tracks.get(index);
-                emitLog("success", "Morceau " + (index + 1) + "/" + total + " « " + t.name + " » : BPM " + result.bpm);
+                emitLog("success", "Morceau " + (index + 1) + "/" + total + " « " + t.name + " » : BPM " + parsedBpm);
                 try {
                     JSONObject payload = new JSONObject();
                     payload.put("trackId", t.id);
                     payload.put("path", t.path);
-                    payload.put("bpm", result.bpm);
+                    payload.put("bpm", parsedBpm);
                     payload.put("index", index + 1);
                     payload.put("total", total);
                     emit("discdjBpm", payload);
@@ -461,6 +465,20 @@ public class DiscDJRobotService extends Service {
                 (float) point.optDouble("x", 0), (float) point.optDouble("y", 0),
                 size[0], size[1]);
         svc.tapAt(xy[0], xy[1], pressDurationMs, (ok, reason) -> cb.done(ok));
+    }
+
+    private Double nodeBpmForCrop(DiscDJAccessibilityService svc, Rect crop) {
+        try {
+            DiscDJAccessibilityService.ScanResult scan = svc.scanDiscDJWindow(discdjPackage);
+            List<String> texts = new ArrayList<>();
+            for (DiscDJAccessibilityService.TextHit h : scan.allText) {
+                if (h == null || h.text == null || h.bounds == null) continue;
+                if (crop.contains(h.bounds.centerX(), h.bounds.centerY())) texts.add(h.text);
+            }
+            return DiscDJAccessibilityService.parseBestBpm(texts);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void returnToMainThen(TapDone cb) {
