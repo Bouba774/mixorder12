@@ -447,6 +447,15 @@ public class DiscDJRobotService extends Service {
     private void tapPoint(JSONObject point, TapDone cb) {
         DiscDJAccessibilityService svc = DiscDJAccessibilityService.getInstance();
         if (svc == null || point == null) { cb.done(false); return; }
+        DiscDJAccessibilityService.WindowSnapshot snap = svc.getWindowSnapshot(discdjPackage);
+        if (!snap.foregroundMatches || !snap.landscape) {
+            visibilityPaused = true;
+            phase = snap.foregroundMatches ? "paused" : "opening";
+            if (!snap.foregroundMatches) openDiscDJ();
+            updateNotif();
+            cb.done(false);
+            return;
+        }
         int[] size = svc.getDisplaySize();
         float[] xy = DiscDJAccessibilityService.pointFromCanonical(
                 (float) point.optDouble("x", 0), (float) point.optDouble("y", 0),

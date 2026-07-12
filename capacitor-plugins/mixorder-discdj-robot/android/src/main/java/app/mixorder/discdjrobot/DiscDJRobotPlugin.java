@@ -214,20 +214,29 @@ public class DiscDJRobotPlugin extends Plugin {
         // Best-effort title / duration lookup from DiscDJ's app window only.
         String title = findLikelyTitle(scan.allText, zone, screenW);
         String duration = null;
+        final java.util.List<String> nodeZoneTexts = new java.util.ArrayList<>();
         for (DiscDJAccessibilityService.TextHit h : scan.allText) {
             String d = DiscDJAccessibilityService.extractDuration(h.text);
             if (d != null) { duration = d; break; }
         }
+        for (DiscDJAccessibilityService.TextHit h : scan.allText) {
+            if (h == null || h.text == null || h.bounds == null) continue;
+            int cx = h.bounds.centerX();
+            int cy = h.bounds.centerY();
+            if (zone.contains(cx, cy)) nodeZoneTexts.add(h.text);
+        }
+        final Double nodeBpm = DiscDJAccessibilityService.parseBestBpm(nodeZoneTexts);
         out.put("title", title);
         out.put("duration", duration);
 
         svc.readBpmFromScreenshot(zone, pkg, result -> {
-            out.put("bpm", result.bpm);
-            out.put("raw", result.raw);
+            out.put("bpm", nodeBpm != null ? nodeBpm : result.bpm);
+            out.put("raw", joinNodeAndOcr(nodeZoneTexts, result.raw));
             JSArray zoneTexts = new JSArray();
+            for (String text : nodeZoneTexts) zoneTexts.put(text);
             for (String text : result.zoneTexts) zoneTexts.put(text);
             out.put("zoneTexts", zoneTexts);
-            out.put("parseReason", result.parseReason);
+            out.put("parseReason", nodeBpm != null ? null : result.parseReason);
             out.put("sourcePackage", result.sourcePackage);
             out.put("sourceOk", result.sourceOk);
             out.put("displayWidth", result.displayWidth);
@@ -452,6 +461,22 @@ public class DiscDJRobotPlugin extends Plugin {
             // enumeration may be blocked on some devices — fall through
         }
         return null;
+    }
+
+    private static String joinNodeAndOcr(java.util.List<String> nodeTexts, String ocrRaw) {
+        StringBuilder b = new StringBuilder();
+        if (nodeTexts != null) {
+            for (String s : nodeTexts) {
+                if (s == null || s.trim().isEmpty()) continue;
+                if (b.length() > 0) b.append(' ');
+                b.append(s.trim());
+            }
+        }
+        if (ocrRaw != null && !ocrRaw.trim().isEmpty()) {
+            if (b.length() > 0) b.append(' ');
+            b.append(ocrRaw.trim());
+        }
+        return b.toString();
     }
 
     private static boolean isAccessibilityServiceEnabled(Context ctx) {
