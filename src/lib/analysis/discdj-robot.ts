@@ -193,6 +193,26 @@ export function useDiscDJRobot() {
     await bridgeRef.current.openAccessibilitySettings();
   }, []);
 
+  /**
+   * Native accessibility status probe. Returns quickly and never throws so
+   * the UI gate can poll it aggressively while the user toggles the switch
+   * from Android's Accessibility settings.
+   */
+  const checkAccessibility = useCallback(async () => {
+    try {
+      const s = await bridgeRef.current.isReady();
+      return {
+        // On the simulated / web bridge we don't gate anything — treat as ok.
+        native: bridgeRef.current.id !== "simulated",
+        enabled: s.accessibilityEnabled !== false,
+        discdjInstalled: s.discdjInstalled !== false,
+        reason: s.reason ?? null,
+      };
+    } catch {
+      return { native: bridgeRef.current.id !== "simulated", enabled: false, discdjInstalled: true, reason: null };
+    }
+  }, []);
+
   /** Whether the active bridge supports interactive in-DiscDJ capture. */
   const supportsDirectCapture = typeof bridgeRef.current.captureCalibration === "function";
 
@@ -1184,6 +1204,7 @@ export function useDiscDJRobot() {
     testBackButton,
     testNameZone,
     openAccessibilitySettings,
+    checkAccessibility,
   } as const;
 }
 
