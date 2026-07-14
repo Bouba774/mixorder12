@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import {
-  Music2, Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
+  Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
   CheckSquare, Square, X, Trash2, Check, Star, Settings2,
 } from "lucide-react";
 import {
