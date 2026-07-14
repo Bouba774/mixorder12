@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import {
   Waves, Check, AlertCircle, Pause, Play, RefreshCw, Zap, Gauge, ListRestart,
 } from "lucide-react";
+import { PageHeader } from "../PageHeader";
 import { useWorkspace } from "@/lib/workspace-context";
 import { useKeyAnalysisEngine } from "@/hooks/useKeyAnalysisEngine";
 import { keyAnalysisEngine } from "@/lib/key-analysis/engine";
