@@ -7,6 +7,7 @@ import {
   Copy,
   Pencil,
   ListMusic,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
 import { HomeTab } from "./tabs/HomeTab";
@@ -16,6 +17,7 @@ import { AnalysisTab } from "./tabs/AnalysisTab";
 import { DuplicatesTab } from "./tabs/DuplicatesTab";
 import { RenameTab } from "./tabs/RenameTab";
 import { SetBuilderTab } from "./tabs/SetBuilderTab";
+import { SettingsTab } from "./tabs/SettingsTab";
 import { MiniPlayer } from "./player/MiniPlayer";
 import { usePlayer } from "@/lib/player/player-context";
 import { TabErrorBoundary } from "./TabErrorBoundary";
@@ -37,7 +39,8 @@ type TabId =
   | "analysis"
   | "duplicates"
   | "setbuilder"
-  | "rename";
+  | "rename"
+  | "settings";
 
 const TABS = [
   { id: "home", label: "Accueil", icon: Home },
@@ -47,6 +50,7 @@ const TABS = [
   { id: "analysis", label: "Analyse", icon: Waves },
   { id: "duplicates", label: "Doublons", icon: Copy },
   { id: "rename", label: "Renom.", icon: Pencil },
+  { id: "settings", label: "Réglages", icon: SettingsIcon },
 ] as const satisfies ReadonlyArray<{ id: TabId; label: string; icon: typeof Library }>;
 
 export function Workspace() {
@@ -86,6 +90,7 @@ export function Workspace() {
             {tab === "duplicates" && <DuplicatesTab />}
             {tab === "setbuilder" && <SetBuilderTab />}
             {tab === "rename" && <RenameTab />}
+            {tab === "settings" && <SettingsTab />}
           </div>
         </TabErrorBoundary>
       </main>
