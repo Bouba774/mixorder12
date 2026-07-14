@@ -140,6 +140,12 @@ export function SetBuilderTab() {
 
   return (
     <div className="mx-auto max-w-6xl">
+      <PageHeader
+        icon={ListMusic}
+        eyebrow="Set Builder"
+        title="Playlists harmoniques"
+        subtitle="10 modes de génération basés sur la roue Camelot, l'énergie et le BPM."
+      />
       {/* ─────── header / set switcher ─────── */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <ListMusic className="h-5 w-5 text-primary" />
