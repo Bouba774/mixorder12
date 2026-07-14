@@ -57,7 +57,7 @@ export function HomeTab({ onNavigate, onChangeLibrary }: HomeTabProps) {
     () => (project ? projectFingerprint(project) : null),
     [project],
   );
-  const journal = useRobotJournal(fingerprint);
+  const { entries: journal } = useRobotJournal();
   const [renameBatches, setRenameBatches] = useState<RenameBatch[]>([]);
 
   useEffect(() => {
@@ -231,7 +231,7 @@ export function HomeTab({ onNavigate, onChangeLibrary }: HomeTabProps) {
           subtitle="Où vous vous êtes arrêté"
         />
         <RecentActivity
-          journal={journal}
+          journal={journal as import("@/lib/analysis/robot-journal").JournalEntry[]}
           renameBatches={renameBatches}
           projectCreatedAt={project.createdAt}
           sets={sets}
