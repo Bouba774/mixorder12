@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
 import { useLibraryView } from "@/lib/library/view-context";
+import { useSetBuilder } from "@/lib/setbuilder/context";
 import { SORT_OPTIONS } from "@/lib/library/sort";
 import {
   TEMPLATES,
