@@ -16,6 +16,8 @@ import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifi
 import { formatDuration, useWorkspace, type Track, type TrackId } from "@/lib/workspace-context";
 import { useLibraryView } from "@/lib/library/view-context";
 import { SORT_OPTIONS, type SortField, type SortDir } from "@/lib/library/sort";
+import { PlayPauseButton } from "../player/PlayPauseButton";
+
 
 
 export interface ColumnPrefs {
