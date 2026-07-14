@@ -17,10 +17,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
-  CheckSquare, Square, X, Trash2, Check, Settings2,
-  Library as LibraryIcon, FolderInput, Filter, ListChecks,
-  Move, Rows3, Rows4, LayoutGrid, AlertCircle, Music2, Copy,
-  Clock, HardDrive, KeyRound, Activity, Sparkles,
+  X, Trash2, Check,
+  FolderInput, Move, AlertCircle, Music2, Copy,
+  Clock, SlidersHorizontal, Info, Signal,
 } from "lucide-react";
 import {
   DndContext, PointerSensor, TouchSensor, KeyboardSensor,
@@ -38,47 +37,41 @@ import { useLibraryView } from "@/lib/library/view-context";
 import { SORT_OPTIONS } from "@/lib/library/sort";
 import { useDuplicates } from "@/hooks/useDuplicates";
 import { PlayPauseButton } from "../player/PlayPauseButton";
-import { PageHeader } from "../PageHeader";
 
 // ─────────────────────────────────────────────────────────────
 // Types & constants
 // ─────────────────────────────────────────────────────────────
 
-type Density = "compact" | "comfort" | "detailed";
-const DENSITY_KEY = "mixorder.library.density";
-
-type FilterKey =
-  | "no-bpm"
-  | "no-key"
-  | "duplicates"
-  | "analyzed"
-  | "pending";
-
-const FILTER_DEFS: Array<{ id: FilterKey; label: string; icon: typeof AlertCircle }> = [
-  { id: "no-bpm", label: "Sans BPM", icon: Activity },
-  { id: "no-key", label: "Sans tonalité", icon: KeyRound },
-  { id: "duplicates", label: "Doublons", icon: Copy },
-  { id: "analyzed", label: "Analysés", icon: Sparkles },
-  { id: "pending", label: "À analyser", icon: Clock },
-];
-
 // ─────────────────────────────────────────────────────────────
-// Helpers
+// Camelot palette — one dot color per key family (visual anchor for
+// each track, exactly like TempoKey's colored bullet). Falls back to a
+// neutral tone when the Camelot key hasn't been detected yet.
 // ─────────────────────────────────────────────────────────────
 
-function formatSize(bytes: number): string {
-  if (!bytes) return "—";
-  const mb = bytes / (1024 * 1024);
-  if (mb >= 1) return `${mb.toFixed(1)} Mo`;
-  return `${(bytes / 1024).toFixed(0)} Ko`;
-}
-
-function formatTotalDuration(seconds: number): string {
-  if (!seconds) return "0 min";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h} h ${m.toString().padStart(2, "0")}`;
-  return `${m} min`;
+function camelotPalette(camelot: string | null | undefined): {
+  bg: string;
+  fg: string;
+  dot: string;
+} {
+  if (!camelot) {
+    return { bg: "bg-muted", fg: "text-muted-foreground", dot: "bg-muted-foreground" };
+  }
+  const isMinor = /A$/.test(camelot);
+  const n = parseInt(camelot, 10);
+  // Warm hues for minor (A), cool hues for major (B).
+  const swatches = isMinor
+    ? [
+        "#F87171", "#FB923C", "#F59E0B", "#FBBF24",
+        "#A3E635", "#4ADE80", "#34D399", "#22D3EE",
+        "#60A5FA", "#818CF8", "#A78BFA", "#F472B6",
+      ]
+    : [
+        "#60A5FA", "#38BDF8", "#22D3EE", "#2DD4BF",
+        "#34D399", "#A3E635", "#FACC15", "#FB923C",
+        "#F87171", "#F472B6", "#C084FC", "#818CF8",
+      ];
+  const c = swatches[(n - 1) % swatches.length] ?? "#93C5FD";
+  return { bg: "", fg: "", dot: "", ...({ __c: c } as any), };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -88,7 +81,7 @@ function formatTotalDuration(seconds: number): string {
 export function LibraryTab() {
   const {
     project, reorderTracks, removeTracks,
-    isIndexing, closeProject,
+    isIndexing,
   } = useWorkspace();
   const {
     query, setQuery,
@@ -99,21 +92,9 @@ export function LibraryTab() {
   const { groups: dupGroups } = useDuplicates();
 
   const [selection, setSelection] = useState<Set<TrackId>>(new Set());
-  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set());
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [density, setDensity] = useState<Density>(() => {
-    if (typeof window === "undefined") return "comfort";
-    const stored = window.localStorage.getItem(DENSITY_KEY);
-    return stored === "compact" || stored === "detailed" ? stored : "comfort";
-  });
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(DENSITY_KEY, density);
-    }
-  }, [density]);
 
   const tracks = project?.tracks ?? [];
 
@@ -126,17 +107,8 @@ export function LibraryTab() {
 
   // Filtered + sorted view.
   const filtered = useMemo<Track[]>(() => {
-    const base = applyView(tracks);
-    if (activeFilters.size === 0) return base;
-    return base.filter((t) => {
-      if (activeFilters.has("no-bpm") && t.bpm != null) return false;
-      if (activeFilters.has("no-key") && t.musicalKey) return false;
-      if (activeFilters.has("duplicates") && !duplicateIds.has(t.id)) return false;
-      if (activeFilters.has("analyzed") && t.analysisStatus !== "done") return false;
-      if (activeFilters.has("pending") && t.analysisStatus !== "pending") return false;
-      return true;
-    });
-  }, [tracks, applyView, activeFilters, duplicateIds]);
+    return applyView(tracks);
+  }, [tracks, applyView]);
 
   // ── Selection helpers ──
   const clearSelection = useCallback(() => {
@@ -167,16 +139,6 @@ export function LibraryTab() {
     clearSelection();
   }, [selection, removeTracks, clearSelection]);
 
-  // ── Filter helpers ──
-  const toggleFilter = useCallback((f: FilterKey) => {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(f)) next.delete(f); else next.add(f);
-      return next;
-    });
-  }, []);
-  const clearFilters = useCallback(() => setActiveFilters(new Set()), []);
-
   // ── DnD ──
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -186,8 +148,7 @@ export function LibraryTab() {
   const canReorder =
     reorderMode &&
     sortField === "manual" &&
-    !query.trim() &&
-    activeFilters.size === 0;
+    !query.trim();
 
   const handleDragStart = useCallback((_e: DragStartEvent) => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -207,182 +168,88 @@ export function LibraryTab() {
 
   if (!project) return null;
 
-  // ── Summary metrics ──
   const totalTracks = project.tracks.length;
-  const bpmCount = project.tracks.filter((t) => t.bpm != null).length;
-  const keyCount = project.tracks.filter((t) => Boolean(t.musicalKey)).length;
-  const totalDuration = project.tracks.reduce(
-    (acc, t) => acc + (t.durationSec ?? 0),
-    0,
-  );
-
   const activeSortLabel =
     SORT_OPTIONS.find((s) => s.id === sortField)?.label ?? "Perso";
 
-  const isFiltering = query.trim().length > 0 || activeFilters.size > 0;
+  const isFiltering = query.trim().length > 0;
 
   return (
-    <div className="space-y-5 pb-4">
-      <PageHeader
-        icon={LibraryIcon}
-        eyebrow="Bibliothèque"
-        title={project.name || "Bibliothèque"}
-        subtitle={
-          isIndexing
-            ? "Indexation en cours…"
-            : "Centre de travail de MixOrder"
-        }
-        actions={
-          <button
-            type="button"
-            onClick={closeProject}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-elevated px-3 text-xs font-medium text-foreground hover:border-border-strong"
-          >
-            <FolderInput className="h-3.5 w-3.5" />
-            Changer
-          </button>
-        }
-      />
-
-      {/* ─────── Summary card ─────── */}
-      <section
-        aria-label="Récapitulatif de la bibliothèque"
-        className="rounded-2xl border border-border bg-surface p-4 shadow-sm animate-fade-in"
-      >
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-              Bibliothèque active
-            </p>
-            <h2 className="truncate font-display text-base font-semibold text-foreground">
-              {project.name || "Sans nom"}
-            </h2>
-          </div>
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-            <LibraryIcon className="h-5 w-5" />
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-          <SummaryStat icon={Music2} label="Morceaux" value={totalTracks} />
-          <SummaryStat icon={Activity} label="BPM" value={bpmCount} />
-          <SummaryStat icon={KeyRound} label="Tonalités" value={keyCount} />
-          <SummaryStat icon={Copy} label="Doublons" value={dupGroups.length} />
-          <SummaryStat
-            icon={Clock}
-            label="Durée"
-            value={formatTotalDuration(totalDuration)}
+    <div className="space-y-3 pb-4 animate-fade-in">
+      {/* ─────── Search + action buttons row (TempoKey layout) ─────── */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Recherche : titre, BPM, tonalité…"
+            className="h-12 w-full rounded-2xl border border-border bg-surface pl-11 pr-10 text-sm placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <SummaryStat
-            icon={HardDrive}
-            label="Formats"
-            value={new Set(project.tracks.map((t) => t.extension)).size}
-          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              aria-label="Effacer la recherche"
+              className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
-      </section>
-
-      {/* ─────── Search ─────── */}
-      <div className="relative animate-fade-in">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher : titre, BPM, tonalité, extension, durée…"
-          className="h-12 w-full rounded-2xl border border-border bg-surface pl-11 pr-11 text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-        {query && (
-          <button
-            onClick={() => setQuery("")}
-            aria-label="Effacer la recherche"
-            className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-
-      {/* ─────── Filter chips ─────── */}
-      <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <FilterChip
-          active={activeFilters.size === 0}
-          onClick={clearFilters}
-          icon={Filter}
-          label="Tous"
-          count={totalTracks}
-        />
-        {FILTER_DEFS.map((f) => {
-          const active = activeFilters.has(f.id);
-          return (
-            <FilterChip
-              key={f.id}
-              active={active}
-              onClick={() => toggleFilter(f.id)}
-              icon={f.icon}
-              label={f.label}
-            />
-          );
-        })}
-      </div>
-
-      {/* ─────── Discreet action bar ─────── */}
-      <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface/60 p-1">
-        <ActionBarButton
-          onClick={() => setSortSheetOpen(true)}
-          icon={ArrowUpDown}
-          label="Trier"
-          value={activeSortLabel}
-          direction={
-            sortField !== "manual" && sortField !== "import"
-              ? sortDir
-              : undefined
-          }
-        />
-        <ActionBarSep />
-        <ActionBarButton
-          onClick={() => {
-            if (selectionMode) clearSelection();
-            else { setSelectionMode(true); setReorderMode(false); }
-          }}
-          icon={selectionMode ? CheckSquare : ListChecks}
-          label="Sélection"
-          active={selectionMode}
-        />
-        <ActionBarSep />
-        <ActionBarButton
+        <button
+          type="button"
           onClick={() => {
             setReorderMode((v) => !v);
             if (!reorderMode) setSelectionMode(false);
           }}
-          icon={Move}
-          label="Réorg."
-          active={reorderMode}
           disabled={sortField !== "manual" || isFiltering}
-        />
-        <ActionBarSep />
-        <ActionBarButton
-          onClick={closeProject}
-          icon={FolderInput}
-          label="Importer"
-        />
-        <DensitySwitcher density={density} setDensity={setDensity} />
+          aria-pressed={reorderMode}
+          aria-label="Mode réorganisation"
+          className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            reorderMode
+              ? "border-primary bg-primary/15 text-primary"
+              : "border-border bg-surface text-foreground hover:border-border-strong"
+          }`}
+        >
+          <Move className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setSortSheetOpen(true)}
+          aria-label={`Trier · ${activeSortLabel}`}
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-border bg-surface text-foreground transition-colors hover:border-border-strong"
+        >
+          <SlidersHorizontal className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* ─────── Count + active sort ─────── */}
+      <div className="flex items-baseline justify-between px-1 text-[13px]">
+        <span className="tabular-nums text-muted-foreground">
+          {filtered.length} / {totalTracks} morceau{totalTracks > 1 ? "x" : ""}
+          {isIndexing && " · indexation…"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setSortSheetOpen(true)}
+          className="inline-flex items-center gap-1 font-medium text-primary hover:opacity-85"
+        >
+          Ordre actif : {activeSortLabel}
+          {sortField !== "manual" && sortField !== "import" && (
+            sortDir === "asc"
+              ? <ArrowUp className="h-3.5 w-3.5" />
+              : <ArrowDown className="h-3.5 w-3.5" />
+          )}
+        </button>
       </div>
 
       {/* ─────── Track list ─────── */}
       <div className="space-y-2">
-        <div className="flex items-baseline justify-between px-1">
-          <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            {isFiltering ? "Résultats" : "Morceaux"}
-          </h2>
-          <span className="text-[11px] text-muted-foreground">
-            {filtered.length} / {totalTracks}
-            {isIndexing && " · indexation…"}
-          </span>
-        </div>
-
         {filtered.length === 0 ? (
           <EmptyState
             isFiltering={isFiltering}
-            onClear={() => { clearFilters(); setQuery(""); }}
-            onImport={closeProject}
+            onClear={() => setQuery("")}
+            onImport={() => useWorkspace}
           />
         ) : (
           <DndContext
@@ -401,7 +268,6 @@ export function LibraryTab() {
                   <TrackCard
                     key={t.id}
                     track={t}
-                    density={density}
                     selected={selection.has(t.id)}
                     selectionMode={selectionMode}
                     isDuplicate={duplicateIds.has(t.id)}
