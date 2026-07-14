@@ -276,3 +276,71 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
+
+/* List item lifecycle animations — enter / exit / stagger. */
+@keyframes list-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+@utility animate-list-enter {
+  animation: list-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes list-exit {
+  from { opacity: 1; transform: translateX(0)    scale(1); max-height: 200px; }
+  to   { opacity: 0; transform: translateX(-24px) scale(0.96); max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; }
+}
+@utility animate-list-exit {
+  animation: list-exit 0.28s cubic-bezier(0.55, 0, 0.55, 1) both;
+  overflow: hidden;
+}
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.9); }
+  60%  { opacity: 1; transform: scale(1.03); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@utility animate-pop-in {
+  animation: pop-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Staggered entrance — apply on the child while parent tracks index via style var --i. */
+@utility stagger-item {
+  animation: list-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+
+/* Skeleton loader — smoother than default shimmer, respects surface color. */
+@utility skeleton {
+  position: relative;
+  background: color-mix(in oklab, var(--surface-elevated) 100%, transparent);
+  overflow: hidden;
+  border-radius: 0.75rem;
+}
+@keyframes skeleton-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--primary) 8%, transparent) 50%,
+    transparent 100%
+  );
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+/* Reduce motion — the OS override wins over premium animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
