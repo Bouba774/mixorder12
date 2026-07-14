@@ -10,6 +10,7 @@ import { RenameTab } from "./tabs/RenameTab";
 import { SetBuilderTab } from "./tabs/SetBuilderTab";
 import { MiniPlayer } from "./player/MiniPlayer";
 import { usePlayer } from "@/lib/player/player-context";
+import { TabErrorBoundary } from "./TabErrorBoundary";
 
 
 /**
