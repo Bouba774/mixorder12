@@ -94,6 +94,7 @@ function savePersisted(fp: string | null, data: PersistedPlayer) {
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const { project } = useWorkspace();
   const { applyView } = useLibraryView();
+  const { activeOrderedIds } = useSetBuilder();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   if (audioRef.current === null && typeof window !== "undefined") {
