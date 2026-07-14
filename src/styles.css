@@ -52,23 +52,23 @@
 }
 
 /* =========================================================
-   DARK THEME (default) — Obsidian + Gold
+   DARK THEME (default) — Deep Blue Night
    ========================================================= */
 :root,
 .dark {
   --radius: 0.875rem;
 
-  --background: #111315;
-  --foreground: #FAFAF8;
+  --background: #0B1220;
+  --foreground: #F1F5FF;
 
-  --surface: #1A1D21;
-  --surface-elevated: #242931;
+  --surface: #111A2E;
+  --surface-elevated: #17223B;
 
-  --card: #1A1D21;
-  --card-foreground: #FAFAF8;
+  --card: #111A2E;
+  --card-foreground: #F1F5FF;
 
-  --popover: #1A1D21;
-  --popover-foreground: #FAFAF8;
+  --popover: #111A2E;
+  --popover-foreground: #F1F5FF;
 
   --primary: #2563EB;
   --primary-foreground: #FFFFFF;
