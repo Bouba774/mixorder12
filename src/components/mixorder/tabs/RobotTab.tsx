@@ -398,7 +398,7 @@ function StepCalibration({ robot }: { robot: ReturnType<typeof useDiscDJRobot> }
 /* Step 3 — Settings                                                      */
 /* ────────────────────────────────────────────────────────────────────── */
 
-function StepSettings({ robot }: { robot: ReturnType<typeof useDiscDJRobot> }) {
+function StepSettings({ robot, deck, onDeckChange }: { robot: ReturnType<typeof useDiscDJRobot>; deck: DeckId; onDeckChange: (d: DeckId) => void }) {
   const { state, updateSettings } = robot;
   const s = state.settings;
 
@@ -409,20 +409,21 @@ function StepSettings({ robot }: { robot: ReturnType<typeof useDiscDJRobot> }) {
         <p className="mb-1.5 text-[11px] font-semibold text-foreground">Platine utilisée</p>
         <div className="grid grid-cols-2 gap-1.5">
           {[1, 2].map((d) => {
-            const deck = d as DeckId;
-            const active = s.preferredDeck === deck;
+            const id = d as DeckId;
+            const active = deck === id;
             return (
               <button
-                key={deck}
-                onClick={() => updateSettings({ preferredDeck: deck })}
+                key={id}
+                onClick={() => onDeckChange(id)}
                 className={`inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border font-semibold text-[13px] transition-colors ${active ? "border-primary/50 bg-accent/40 text-foreground" : "border-border bg-background text-muted-foreground"}`}
               >
-                Platine {deck}
+                Platine {id}
               </button>
             );
           })}
         </div>
       </div>
+
 
       {/* Mode selector */}
       <div className="mb-3">
