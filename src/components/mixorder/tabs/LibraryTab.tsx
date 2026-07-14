@@ -155,7 +155,7 @@ export function LibraryTab() {
             </span>
           </button>
           <button
-            onClick={() => setFavOnly((v) => !v)}
+            onClick={() => setFavOnly(!favOnly)}
             aria-pressed={favOnly}
             className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${
               favOnly ? "border-primary/40 bg-accent/40 text-primary" : "border-border bg-surface text-muted-foreground hover:text-foreground"
