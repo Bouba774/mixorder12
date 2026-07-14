@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
   CheckSquare, Square, X, Trash2, Check, Star, Settings2,
+  Library as LibraryIcon, FolderInput,
 } from "lucide-react";
 import {
   DndContext, PointerSensor, TouchSensor, KeyboardSensor,
@@ -17,6 +18,7 @@ import { formatDuration, useWorkspace, type Track, type TrackId } from "@/lib/wo
 import { useLibraryView } from "@/lib/library/view-context";
 import { SORT_OPTIONS, type SortField, type SortDir } from "@/lib/library/sort";
 import { PlayPauseButton } from "../player/PlayPauseButton";
+import { PageHeader, HeaderStat } from "../PageHeader";
 
 
 
@@ -49,7 +51,7 @@ function formatDate(ts: number): string {
 }
 
 export function LibraryTab() {
-  const { project, reorderTracks, removeTracks, toggleFavorite, isIndexing } =
+  const { project, reorderTracks, removeTracks, toggleFavorite, isIndexing, closeProject } =
     useWorkspace();
   const {
     query, setQuery,
@@ -119,6 +121,46 @@ export function LibraryTab() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        icon={LibraryIcon}
+        eyebrow="Bibliothèque"
+        title={project.name || "Bibliothèque"}
+        subtitle={
+          isIndexing
+            ? "Indexation en cours…"
+            : `${project.tracks.length} morceau${project.tracks.length > 1 ? "x" : ""}`
+        }
+        meta={
+          <>
+            <HeaderStat label="Total" value={project.tracks.length} />
+            <HeaderStat label="Filtrés" value={filtered.length} />
+            {isSelectionMode && (
+              <HeaderStat label="Sélection" value={selection.size} />
+            )}
+          </>
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={closeProject}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-elevated px-3 text-xs font-medium text-foreground hover:border-border-strong"
+            >
+              <FolderInput className="h-3.5 w-3.5" />
+              Changer de bibliothèque
+            </button>
+            <button
+              type="button"
+              onClick={() => setColsOpen(true)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-elevated px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Paramètres
+            </button>
+          </>
+        }
+      />
+
       <div className="space-y-2.5">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

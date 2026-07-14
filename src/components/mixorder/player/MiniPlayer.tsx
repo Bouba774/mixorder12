@@ -20,7 +20,12 @@ import { formatDuration } from "@/lib/workspace-context";
  * scrubbing, transport controls (previous / play-pause / next), volume,
  * and a close button that fully unloads the audio element.
  */
-export function MiniPlayer() {
+export interface MiniPlayerProps {
+  /** Pixels to lift the player above the viewport bottom (e.g. BottomNav height). */
+  bottomOffset?: number;
+}
+
+export function MiniPlayer({ bottomOffset = 0 }: MiniPlayerProps = {}) {
   const {
     currentTrack,
     trackId,
@@ -56,7 +61,11 @@ export function MiniPlayer() {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
+      className="fixed inset-x-0 z-40 border-t border-border/60 bg-surface/95 backdrop-blur-md"
+      style={{
+        bottom: bottomOffset,
+        paddingBottom: bottomOffset > 0 ? undefined : "env(safe-area-inset-bottom)",
+      }}
       role="region"
       aria-label="Lecteur audio"
     >

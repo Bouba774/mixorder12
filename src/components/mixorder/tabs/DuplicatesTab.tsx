@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useWorkspace, formatDuration, type Track } from "@/lib/workspace-context";
 import { useDuplicates, type DupConfidence, type DupGroup } from "@/hooks/useDuplicates";
+import { PageHeader } from "../PageHeader";
 
 /**
  * Duplicates tab — full-featured local duplicate detection UI.
@@ -130,6 +131,12 @@ export function DuplicatesTab() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        icon={Copy}
+        eyebrow="Doublons"
+        title="Détection intelligente"
+        subtitle="Empreinte + durée + nom normalisé. Aucun fichier n'est modifié sans confirmation."
+      />
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Music2, Loader2, Check, AlertTriangle, Trash2 } from "lucide-react";
+import { Music2, Loader2, Check, AlertTriangle, Trash2, Bot } from "lucide-react";
+import { PageHeader } from "../PageHeader";
 import { DiscDJAccessibilityGate } from "../DiscDJAccessibilityGate";
 import { DiscDJRobotPanel } from "../DiscDJRobotPanel";
 import { useWorkspace } from "@/lib/workspace-context";
@@ -18,6 +19,12 @@ import { useRobotJournal } from "@/hooks/useRobotJournal";
 export function RobotTab() {
   return (
     <div className="space-y-4">
+      <PageHeader
+        icon={Bot}
+        eyebrow="Robot DiscDJ"
+        title="Analyse BPM assistée"
+        subtitle="Pilote DiscDJ pour remplir automatiquement les BPM de la bibliothèque."
+      />
       <LibraryStates />
       <DiscDJAccessibilityGate>
         <DiscDJRobotPanel />
