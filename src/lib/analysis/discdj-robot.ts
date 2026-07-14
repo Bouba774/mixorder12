@@ -36,6 +36,8 @@ import {
 } from "./persistence";
 import type { AnalysisSnapshot } from "./types";
 import { findBestMatch, normalizeTrackName, similarity } from "./name-normalize";
+import { appendJournal, type JournalEntry } from "./robot-journal";
+import { keyAnalysisEngine } from "@/lib/key-analysis/engine";
 
 /**
  * DiscDJ analysis robot — headless orchestrator.
@@ -329,6 +331,9 @@ export function useDiscDJRobot() {
       backgroundRunRef.current = false;
     }
     log("warning", "Analyse interrompue par l'utilisateur.");
+    // Release the key-analysis engine from slow mode — the robot is done
+    // holding the CPU.
+    keyAnalysisEngine.setSlowMode(false);
     setState((s) => ({
       ...s,
       phase: s.phase === "done" ? "done" : "paused",
@@ -396,6 +401,7 @@ export function useDiscDJRobot() {
       backgroundRunRef.current = false;
       setState((s) => ({ ...s, phase: "done", etaMsRemaining: 0 }));
       log("success", "Analyse en arrière-plan terminée.");
+      keyAnalysisEngine.setSlowMode(false);
     }));
     subs.push(bridge.addBackgroundListener("discdjVisibilityPaused", (payload) => {
       const p = payload as { visible?: boolean };
@@ -432,6 +438,11 @@ export function useDiscDJRobot() {
         setState((s) => ({ ...s, phase: "error", errorMessage: message }));
         return;
       }
+
+      // Robot has priority: throttle the background key-analysis engine
+      // so it never fights the OCR / accessibility loop for CPU. It is
+      // released again in `stop()` and at the end of the run.
+      keyAnalysisEngine.setSlowMode(true);
 
       log("info", "Vérification du robot DiscDJ…");
       const readiness = await bridge.isReady();
@@ -707,6 +718,16 @@ export function useDiscDJRobot() {
             setTrackAnalysis(matched.id, { bpm }, "discdj-auto");
             processedRef.current.add(matched.id);
             foundBpms.push({ index: i + 1, name: matched.name, bpm, ocrName: cleaned, score: match.score });
+            appendJournal(fingerprint, {
+              ts: Date.now(),
+              trackId: matched.id,
+              name: matched.name,
+              bpm,
+              outcome: "success",
+              durationMs: Date.now() - runStartedAt,
+              attempts: 1,
+              message: `OCR « ${cleaned} » · score ${(match.score * 100).toFixed(0)}%`,
+            } satisfies JournalEntry);
             snapshot = markRun(
               snapshot ?? { v: 1, name: p.name, tracks: {} },
               p.name,
@@ -783,6 +804,7 @@ export function useDiscDJRobot() {
           toVerify,
         };
         log("success", `AutoSync terminé : ${foundBpms.length}/${total} morceaux associés · ${toVerify.length} à vérifier.`);
+        keyAnalysisEngine.setSlowMode(false);
         setState((s) => ({
           ...s,
           phase: "done",
@@ -856,6 +878,16 @@ export function useDiscDJRobot() {
               setTrackAnalysis(track.id, { bpm: voted.bpm }, "discdj-auto");
               processedRef.current.add(track.id);
               foundBpms.push({ index: i + 1, name: track.name, bpm: voted.bpm });
+              appendJournal(fingerprint, {
+                ts: Date.now(),
+                trackId: track.id,
+                name: track.name,
+                bpm: voted.bpm,
+                outcome: "success",
+                durationMs: 0,
+                attempts: voted.attempts,
+                message: `Vote ×${voted.voteCount}/${voted.attempts}`,
+              });
               if (settings.autosaveEachStep) {
                 snapshot = markRun(
                   snapshot ?? { v: 1, name: p.name, tracks: {} },
@@ -878,6 +910,16 @@ export function useDiscDJRobot() {
               // the sequence aligned by still tapping Next.
               missing.push({ index: i + 1, name: track.name });
               const reason = reading.parseReason ?? "BPM illisible après plusieurs tentatives.";
+              appendJournal(fingerprint, {
+                ts: Date.now(),
+                trackId: track.id,
+                name: track.name,
+                bpm: null,
+                outcome: "retry",
+                durationMs: 0,
+                attempts: settings.maxAttempts,
+                message: reason,
+              });
               log(
                 "warning",
                 `Morceau ${positionLabel} « ${track.name} » : marqué « À réanalyser » (${reason}).`,
