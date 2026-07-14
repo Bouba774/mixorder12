@@ -54,12 +54,13 @@ export function RobotTab() {
   const phase = state.phase;
   const running = !["idle", "paused", "done", "error"].includes(phase);
   const inProgressUi = running || phase === "paused" || phase === "awaiting-user";
+  const [deck, setDeck] = useState<DeckId>(1);
 
   if (phase === "done" && state.recap) {
-    return <ResultsView robot={robot} />;
+    return <ResultsView robot={robot} deck={deck} />;
   }
   if (inProgressUi) {
-    return <ProgressView robot={robot} />;
+    return <ProgressView robot={robot} deck={deck} />;
   }
 
   const hasLibrary = (project?.tracks?.length ?? 0) > 0;
@@ -76,8 +77,8 @@ export function RobotTab() {
 
       <StepVerification robot={robot} hasLibrary={hasLibrary} calibrationDone={calibrationDone} />
       <StepCalibration robot={robot} />
-      <StepSettings robot={robot} />
-      <StepLaunch robot={robot} disabled={!hasLibrary || !calibrationDone} />
+      <StepSettings robot={robot} deck={deck} onDeckChange={setDeck} />
+      <StepLaunch robot={robot} deck={deck} disabled={!hasLibrary || !calibrationDone} />
 
       <JournalSection />
     </div>
