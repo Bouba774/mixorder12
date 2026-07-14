@@ -7,6 +7,9 @@ import { RobotTab } from "./tabs/RobotTab";
 import { AnalysisTab } from "./tabs/AnalysisTab";
 import { DuplicatesTab } from "./tabs/DuplicatesTab";
 import { RenameTab } from "./tabs/RenameTab";
+import { MiniPlayer } from "./player/MiniPlayer";
+import { usePlayer } from "@/lib/player/player-context";
+
 
 /**
  * The Workspace is the single shell every feature of MixOrder lives in.
