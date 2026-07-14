@@ -908,6 +908,16 @@ export function useDiscDJRobot() {
               // the sequence aligned by still tapping Next.
               missing.push({ index: i + 1, name: track.name });
               const reason = reading.parseReason ?? "BPM illisible après plusieurs tentatives.";
+              appendJournal(fingerprint, {
+                ts: Date.now(),
+                trackId: track.id,
+                name: track.name,
+                bpm: null,
+                outcome: "retry",
+                durationMs: 0,
+                attempts: settings.maxAttempts,
+                message: reason,
+              });
               log(
                 "warning",
                 `Morceau ${positionLabel} « ${track.name} » : marqué « À réanalyser » (${reason}).`,
