@@ -133,6 +133,12 @@ interface WorkspaceContextValue {
   toggleFavorite: (id: TrackId) => void;
   /** Remove tracks from the library (does NOT touch disk). */
   removeTracks: (ids: TrackId[]) => void;
+  /**
+   * Duplicate merge: fold BPM / key / favorite / rename history from all
+   * `sourceIds` into `keeperId` (only when the keeper is missing the value),
+   * then remove the source tracks from the library.
+   */
+  mergeAndRemoveDuplicates: (keeperId: TrackId, sourceIds: TrackId[]) => void;
   /** Replace ordering — foundation for sort / set builder. */
   reorderTracks: (orderedIds: TrackId[]) => void;
 }
