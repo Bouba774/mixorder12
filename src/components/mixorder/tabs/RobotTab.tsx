@@ -19,6 +19,12 @@ import { useRobotJournal } from "@/hooks/useRobotJournal";
 export function RobotTab() {
   return (
     <div className="space-y-4">
+      <PageHeader
+        icon={Bot}
+        eyebrow="Robot DiscDJ"
+        title="Analyse BPM assistée"
+        subtitle="Pilote DiscDJ pour remplir automatiquement les BPM de la bibliothèque."
+      />
       <LibraryStates />
       <DiscDJAccessibilityGate>
         <DiscDJRobotPanel />
