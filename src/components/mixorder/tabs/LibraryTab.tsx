@@ -51,7 +51,7 @@ function formatDate(ts: number): string {
 }
 
 export function LibraryTab() {
-  const { project, reorderTracks, removeTracks, toggleFavorite, isIndexing } =
+  const { project, reorderTracks, removeTracks, toggleFavorite, isIndexing, closeProject } =
     useWorkspace();
   const {
     query, setQuery,
