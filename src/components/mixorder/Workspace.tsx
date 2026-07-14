@@ -99,6 +99,7 @@ export function Workspace() {
         {tab === "robot" && <RobotTab />}
         {tab === "analysis" && <AnalysisTab />}
         {tab === "duplicates" && <DuplicatesTab />}
+        {tab === "setbuilder" && <SetBuilderTab />}
         {tab === "rename" && <RenameTab />}
       </main>
 
