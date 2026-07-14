@@ -20,6 +20,13 @@ import {
   upsertTrackData,
 } from "./analysis/persistence";
 import type { BpmSourceId } from "./analysis/types";
+import { toCamelot } from "./library/camelot";
+import {
+  listRecentLibraries,
+  touchRecentLibrary,
+  forgetRecentLibrary,
+  type RecentLibrary,
+} from "./library/recent";
 
 /**
  * MixOrder workspace state.
@@ -57,6 +64,20 @@ export interface Track {
   /** Reserved for future analysis. */
   bpm: number | null;
   musicalKey: string | null;
+  /** Camelot wheel notation derived from `musicalKey`. */
+  camelot: string | null;
+  /** User favorite flag. */
+  favorite: boolean;
+  /** First time we imported this file. */
+  addedAt: number;
+  /** Last time file metadata (size/name) changed. */
+  modifiedAt: number;
+  /** Chronological rename log. */
+  renameHistory: Array<{ from: string; to: string; at: number }>;
+  /** Where the track stands in our analysis pipeline. */
+  analysisStatus: "pending" | "analyzing" | "done" | "error";
+  /** Sync status vs the imported folder. */
+  syncStatus: "synced" | "missing" | "moved";
 }
 
 export interface Project {
@@ -65,10 +86,27 @@ export interface Project {
   tracks: Track[];
 }
 
+/** Summary of the diff produced by re-importing an existing library. */
+export interface ImportDiffSummary {
+  added: number;
+  removed: number;
+  renamed: number;
+  moved: number;
+  unchanged: number;
+}
+
 interface WorkspaceContextValue {
   project: Project | null;
   /** True while durations / metadata are being read. */
   isIndexing: boolean;
+  /** Recently imported libraries, most recent first. */
+  recentLibraries: RecentLibrary[];
+  /** Refresh the recent-libraries list from storage. */
+  refreshRecentLibraries: () => void;
+  /** Remove a library from the recent list (metadata is kept). */
+  forgetLibrary: (fingerprint: string) => void;
+  /** Last import diff, if the current session started from a re-import. */
+  lastImportDiff: ImportDiffSummary | null;
   /** Import from a web <input webkitdirectory> file list. */
   openProject: (files: FileList | File[]) => void;
   /** Import from a pre-built project (used by the native picker). */
@@ -87,6 +125,10 @@ interface WorkspaceContextValue {
     patch: { bpm?: number | null; musicalKey?: string | null },
     source: BpmSourceId,
   ) => void;
+  /** Rename a track in place (records history + persists). */
+  renameTrack: (id: TrackId, nextName: string) => void;
+  /** Toggle the favorite flag on one track (persists). */
+  toggleFavorite: (id: TrackId) => void;
   /** Remove tracks from the library (does NOT touch disk). */
   removeTracks: (ids: TrackId[]) => void;
   /** Replace ordering — foundation for sort / set builder. */
@@ -125,48 +167,142 @@ function readDuration(url: string): Promise<number | null> {
   });
 }
 
-function buildProject(imported: ImportedProject): Project {
-  const tracks: Track[] = imported.tracks
-    .map((t) => ({
-      id: makeId(),
-      name: t.originalName.replace(/\.[^.]+$/, ""),
-      originalName: t.originalName,
-      path: t.path,
-      extension: extractExt(t.originalName),
-      size: t.size,
-      mimeType: t.mimeType,
-      url: t.url,
-      file: t.file,
-      durationSec: null,
-      bpm: null,
-      musicalKey: null,
-    }))
-    .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
-
-  const shell: Project = {
-    name: imported.name,
-    createdAt: Date.now(),
-    tracks,
+function baseTrackFromImport(t: ImportedProject["tracks"][number], now: number): Track {
+  return {
+    id: makeId(),
+    name: t.originalName.replace(/\.[^.]+$/, ""),
+    originalName: t.originalName,
+    path: t.path,
+    extension: extractExt(t.originalName),
+    size: t.size,
+    mimeType: t.mimeType,
+    url: t.url,
+    file: t.file,
+    durationSec: null,
+    bpm: null,
+    musicalKey: null,
+    camelot: null,
+    favorite: false,
+    addedAt: now,
+    modifiedAt: now,
+    renameHistory: [],
+    analysisStatus: "pending",
+    syncStatus: "synced",
   };
-  // Rehydrate any previously analysed BPM / key so the library reopens ready.
-  const fp = projectFingerprint(shell);
-  const snap = loadSnapshot(fp);
-  return { ...shell, tracks: applyAnalysisToTracks(tracks, snap) };
 }
+
+/**
+ * Build the live library from a freshly imported folder, applying any
+ * previously-persisted per-track metadata (BPM, key, favorites, renames)
+ * so re-imports feel seamless. Never re-imports unchanged tracks — the
+ * scanner diff below detects add/remove/rename by (originalName, size).
+ */
+function buildProject(
+  imported: ImportedProject,
+): { project: Project; diff: ImportDiffSummary } {
+  const now = Date.now();
+  const shell0: Project = {
+    name: imported.name,
+    createdAt: now,
+    tracks: imported.tracks.map((t) => baseTrackFromImport(t, now)),
+  };
+  const fp = projectFingerprint(shell0);
+  const snap = loadSnapshot(fp);
+
+  const diff: ImportDiffSummary = {
+    added: 0,
+    removed: 0,
+    renamed: 0,
+    moved: 0,
+    unchanged: 0,
+  };
+
+  const tracks = shell0.tracks.map((t) => {
+    const data = snap?.tracks[t.path];
+    if (!data) {
+      diff.added += 1;
+      return t;
+    }
+    diff.unchanged += 1;
+    const displayName = data.displayName ?? t.name;
+    return {
+      ...t,
+      name: displayName,
+      bpm: data.bpm ?? null,
+      musicalKey: data.musicalKey ?? null,
+      camelot: toCamelot(data.musicalKey ?? null),
+      favorite: !!data.favorite,
+      addedAt: data.addedAt ?? now,
+      modifiedAt: data.modifiedAt ?? now,
+      renameHistory: data.renameHistory ?? [],
+      analysisStatus: data.bpm != null || data.musicalKey ? "done" : "pending",
+    } satisfies Track;
+  });
+
+  // Removed tracks: present in snapshot but not in imported.
+  if (snap) {
+    const importedPaths = new Set(shell0.tracks.map((t) => t.path));
+    for (const p of Object.keys(snap.tracks)) {
+      if (!importedPaths.has(p)) diff.removed += 1;
+    }
+  }
+
+  tracks.sort((a, b) =>
+    a.path.localeCompare(b.path, undefined, { numeric: true }),
+  );
+
+  const project: Project = { name: imported.name, createdAt: now, tracks };
+  touchRecentLibrary({
+    fingerprint: fp,
+    name: imported.name,
+    trackCount: tracks.length,
+    createdAt: snap ? project.createdAt : now,
+  });
+  return { project, diff };
+}
+
+// legacy compat — some old imports may still call this shape.
+export function _rehydrateLegacy(imported: ImportedProject): Project {
+  return buildProject(imported).project;
+}
+// Silence unused-import warning; retained for future callers.
+void applyAnalysisToTracks;
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [project, setProject] = useState<Project | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
+  const [recentLibraries, setRecentLibraries] = useState<RecentLibrary[]>(() =>
+    listRecentLibraries(),
+  );
+  const [lastImportDiff, setLastImportDiff] = useState<ImportDiffSummary | null>(
+    null,
+  );
   const indexRunRef = useRef(0);
+
+  const refreshRecentLibraries = useCallback(() => {
+    setRecentLibraries(listRecentLibraries());
+  }, []);
+
+  const forgetLibrary = useCallback((fingerprint: string) => {
+    forgetRecentLibrary(fingerprint);
+    setRecentLibraries(listRecentLibraries());
+  }, []);
 
   const openImportedProject = useCallback((imported: ImportedProject) => {
     if (imported.tracks.length === 0) return;
-    setProject(buildProject(imported));
+    const { project, diff } = buildProject(imported);
+    setProject(project);
+    setLastImportDiff(diff);
+    setRecentLibraries(listRecentLibraries());
   }, []);
 
   const openProject = useCallback((input: FileList | File[]) => {
     const imported = projectFromFileList(input);
-    if (imported) setProject(buildProject(imported));
+    if (!imported) return;
+    const { project, diff } = buildProject(imported);
+    setProject(project);
+    setLastImportDiff(diff);
+    setRecentLibraries(listRecentLibraries());
   }, []);
 
   const closeProject = useCallback(() => {
@@ -180,6 +316,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       return null;
     });
     setIsIndexing(false);
+    setLastImportDiff(null);
   }, []);
 
   const updateTrack = useCallback<WorkspaceContextValue["updateTrack"]>((id, patch) => {
@@ -203,6 +340,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
                 bpm: patch.bpm !== undefined ? patch.bpm : t.bpm,
                 musicalKey:
                   patch.musicalKey !== undefined ? patch.musicalKey : t.musicalKey,
+                camelot: toCamelot(
+                  patch.musicalKey !== undefined ? patch.musicalKey : t.musicalKey,
+                ),
+                analysisStatus:
+                  (patch.bpm !== undefined && patch.bpm !== null) ||
+                  (patch.musicalKey !== undefined && patch.musicalKey)
+                    ? "done"
+                    : t.analysisStatus,
               }
             : t,
         );
@@ -214,6 +359,65 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           ...patch,
           source,
         });
+        saveSnapshot(fp, merged);
+        return nextProject;
+      });
+    },
+    [],
+  );
+
+  const renameTrack = useCallback<WorkspaceContextValue["renameTrack"]>(
+    (id, nextName) => {
+      const trimmed = nextName.trim();
+      if (!trimmed) return;
+      setProject((p) => {
+        if (!p) return p;
+        const target = p.tracks.find((t) => t.id === id);
+        if (!target || target.name === trimmed) return p;
+        const entry = { from: target.name, to: trimmed, at: Date.now() };
+        const nextTracks = p.tracks.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                name: trimmed,
+                renameHistory: [...t.renameHistory, entry],
+                modifiedAt: Date.now(),
+              }
+            : t,
+        );
+        const nextProject = { ...p, tracks: nextTracks };
+        const fp = projectFingerprint(nextProject);
+        const snap = loadSnapshot(fp);
+        const merged = upsertTrackData(snap, nextProject.name, target.path, {
+          source: "manual-discdj",
+          displayName: trimmed,
+          renameHistory: [...target.renameHistory, entry],
+          modifiedAt: entry.at,
+        } as never);
+        saveSnapshot(fp, merged);
+        return nextProject;
+      });
+    },
+    [],
+  );
+
+  const toggleFavorite = useCallback<WorkspaceContextValue["toggleFavorite"]>(
+    (id) => {
+      setProject((p) => {
+        if (!p) return p;
+        const target = p.tracks.find((t) => t.id === id);
+        if (!target) return p;
+        const next = !target.favorite;
+        const nextTracks = p.tracks.map((t) =>
+          t.id === id ? { ...t, favorite: next } : t,
+        );
+        const nextProject = { ...p, tracks: nextTracks };
+        const fp = projectFingerprint(nextProject);
+        const snap = loadSnapshot(fp);
+        const merged = upsertTrackData(snap, nextProject.name, target.path, {
+          source: "manual-discdj",
+          favorite: next,
+        } as never);
         saveSnapshot(fp, merged);
         return nextProject;
       });
@@ -286,22 +490,34 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () => ({
       project,
       isIndexing,
+      recentLibraries,
+      refreshRecentLibraries,
+      forgetLibrary,
+      lastImportDiff,
       openProject,
       openImportedProject,
       closeProject,
       updateTrack,
       setTrackAnalysis,
+      renameTrack,
+      toggleFavorite,
       removeTracks,
       reorderTracks,
     }),
     [
       project,
       isIndexing,
+      recentLibraries,
+      refreshRecentLibraries,
+      forgetLibrary,
+      lastImportDiff,
       openProject,
       openImportedProject,
       closeProject,
       updateTrack,
       setTrackAnalysis,
+      renameTrack,
+      toggleFavorite,
       removeTracks,
       reorderTracks,
     ],

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { FolderOpen, Sparkles, Zap, Shield, Loader2 } from "lucide-react";
+import { FolderOpen, Sparkles, Zap, Shield, Loader2, Clock, X } from "lucide-react";
 import { Logo } from "./Logo";
 import { useWorkspace } from "@/lib/workspace-context";
 import { isNativePlatform, pickFolderNative } from "@/lib/folder-import";
 
 export function WelcomeScreen() {
-  const { openProject, openImportedProject } = useWorkspace();
+  const { openProject, openImportedProject, recentLibraries, forgetLibrary } =
+    useWorkspace();
   const inputRef = useRef<HTMLInputElement>(null);
   const [native, setNative] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -140,6 +141,53 @@ export function WelcomeScreen() {
             </div>
           ))}
         </div>
+
+        {recentLibraries.length > 0 && (
+          <div
+            className="animate-fade-up mt-10 w-full max-w-md text-left"
+            style={{ animationDelay: "440ms" }}
+          >
+            <div className="mb-2 flex items-center gap-2 px-1">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+              <h2 className="font-display text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Bibliothèques récentes
+              </h2>
+            </div>
+            <ul className="space-y-2">
+              {recentLibraries.map((r) => (
+                <li
+                  key={r.fingerprint}
+                  className="glass flex items-center gap-3 rounded-xl border border-border/60 px-3 py-2.5"
+                >
+                  <div className="grid h-9 w-9 place-items-center rounded-lg bg-accent/40 text-primary">
+                    <FolderOpen className="h-4 w-4" />
+                  </div>
+                  <button
+                    onClick={handlePick}
+                    className="min-w-0 flex-1 text-left"
+                    title="Ré-importer ce dossier pour restaurer BPM, tonalités, favoris et renommages"
+                  >
+                    <p className="truncate text-sm font-medium">{r.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {r.trackCount} pistes · {new Date(r.lastOpenedAt).toLocaleDateString()}
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => forgetLibrary(r.fingerprint)}
+                    aria-label="Oublier"
+                    className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground/60 hover:bg-surface-elevated hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 px-1 text-[10px] text-muted-foreground/70">
+              Ré-importe le même dossier : BPM, tonalités, favoris et renommages sont
+              restaurés automatiquement.
+            </p>
+          </div>
+        )}
       </main>
 
       <footer className="px-6 pb-6 pt-8 text-center text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60">

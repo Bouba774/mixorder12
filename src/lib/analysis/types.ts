@@ -34,6 +34,16 @@ export interface AnalyzedTrackData {
   /** True when the last analysis attempt could not confidently read a BPM
    *  and the user should re-run the analysis on this track only. */
   needsReanalysis?: boolean;
+  /** User favorite flag — persisted across sessions. */
+  favorite?: boolean;
+  /** User-facing display name (rename result). Empty = use originalName. */
+  displayName?: string | null;
+  /** Chronological rename history. */
+  renameHistory?: Array<{ from: string; to: string; at: number }>;
+  /** First time we saw this track in the library. */
+  addedAt?: number;
+  /** Last time file metadata (size/name) changed on disk. */
+  modifiedAt?: number;
 }
 
 export interface AnalysisRunMeta {

@@ -119,6 +119,18 @@ export function upsertTrackData(
       patch.needsReanalysis !== undefined
         ? patch.needsReanalysis
         : existing?.needsReanalysis,
+    favorite:
+      patch.favorite !== undefined ? patch.favorite : existing?.favorite,
+    displayName:
+      patch.displayName !== undefined
+        ? patch.displayName
+        : existing?.displayName,
+    renameHistory:
+      patch.renameHistory !== undefined
+        ? patch.renameHistory
+        : existing?.renameHistory,
+    addedAt: existing?.addedAt ?? patch.addedAt ?? Date.now(),
+    modifiedAt: patch.modifiedAt ?? Date.now(),
   };
   return base;
 }
