@@ -171,6 +171,12 @@ export function RenameTab() {
 
   return (
     <div className="space-y-4 pb-24">
+      <PageHeader
+        icon={Wand2}
+        eyebrow="Renommage"
+        title="Renommage professionnel"
+        subtitle="Modèles intelligents, aperçu en temps réel et historique annulable."
+      />
       {/* Stepper */}
       <div className="flex items-center gap-1 rounded-full border border-border bg-surface p-1">
         {(["template", "preview", "confirm"] as Step[]).map((s, i) => {
