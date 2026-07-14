@@ -380,148 +380,6 @@ export function LibraryTab() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Summary stat pill
-// ─────────────────────────────────────────────────────────────
-
-function SummaryStat({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof AlertCircle;
-  label: string;
-  value: number | string;
-}) {
-  return (
-    <div className="min-w-0 rounded-xl border border-border/60 bg-surface-elevated/60 p-2.5">
-      <div className="mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-        <Icon className="h-3 w-3" />
-        <span className="truncate">{label}</span>
-      </div>
-      <div className="font-display text-base font-semibold tabular-nums text-foreground">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Filter chip
-// ─────────────────────────────────────────────────────────────
-
-function FilterChip({
-  active, onClick, icon: Icon, label, count,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: typeof AlertCircle;
-  label: string;
-  count?: number;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      className={`inline-flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition-colors ${
-        active
-          ? "border-primary/50 bg-primary/15 text-primary shadow-[0_0_0_1px_var(--color-primary)/10]"
-          : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground"
-      }`}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      <span>{label}</span>
-      {count !== undefined && (
-        <span
-          className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
-            active
-              ? "bg-primary/20 text-primary"
-              : "bg-surface-elevated text-muted-foreground/80"
-          }`}
-        >
-          {count}
-        </span>
-      )}
-    </button>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Action bar
-// ─────────────────────────────────────────────────────────────
-
-function ActionBarButton({
-  onClick, icon: Icon, label, value, direction, active, disabled,
-}: {
-  onClick: () => void;
-  icon: typeof AlertCircle;
-  label: string;
-  value?: string;
-  direction?: "asc" | "desc";
-  active?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`group inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-        active
-          ? "bg-primary/15 text-primary"
-          : "text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
-      }`}
-    >
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">
-        {value ? (
-          <>
-            <span className="hidden text-muted-foreground sm:inline">{label} · </span>
-            <span className="text-foreground">{value}</span>
-          </>
-        ) : (
-          label
-        )}
-      </span>
-      {direction === "asc" && <ArrowUp className="h-3 w-3 text-primary" />}
-      {direction === "desc" && <ArrowDown className="h-3 w-3 text-primary" />}
-    </button>
-  );
-}
-function ActionBarSep() {
-  return <span className="h-5 w-px shrink-0 bg-border" aria-hidden />;
-}
-
-function DensitySwitcher({
-  density, setDensity,
-}: {
-  density: Density;
-  setDensity: (d: Density) => void;
-}) {
-  const items: Array<{ id: Density; icon: typeof AlertCircle; label: string }> = [
-    { id: "compact", icon: Rows4, label: "Compact" },
-    { id: "comfort", icon: Rows3, label: "Confort" },
-    { id: "detailed", icon: LayoutGrid, label: "Détaillé" },
-  ];
-  return (
-    <div className="ml-1 hidden items-center gap-0.5 rounded-lg border border-border/70 bg-surface p-0.5 sm:flex">
-      {items.map(({ id, icon: Icon, label }) => (
-        <button
-          key={id}
-          onClick={() => setDensity(id)}
-          aria-label={label}
-          className={`grid h-8 w-8 place-items-center rounded-md transition-colors ${
-            density === id
-              ? "bg-primary/15 text-primary"
-              : "text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
-          }`}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
 // Empty state
 // ─────────────────────────────────────────────────────────────
 
@@ -581,11 +439,10 @@ function EmptyState({
 // ─────────────────────────────────────────────────────────────
 
 function TrackCard({
-  track, density, selected, selectionMode, isDuplicate, canDrag,
+  track, selected, selectionMode, isDuplicate, canDrag,
   onToggleSelect, style,
 }: {
   track: Track;
-  density: Density;
   selected: boolean;
   selectionMode: boolean;
   isDuplicate: boolean;
@@ -600,9 +457,9 @@ function TrackCard({
   const missingKey = !track.musicalKey;
   const hasMissing = missingBpm || missingKey;
 
-  const pad = density === "compact" ? "p-2.5" : density === "detailed" ? "p-4" : "p-3";
-  const gap = density === "compact" ? "gap-2" : "gap-3";
-  const titleSize = density === "detailed" ? "text-[15px]" : "text-sm";
+  const pad = "p-3";
+  const gap = "gap-3";
+  const titleSize = "text-sm";
 
   const dndStyle: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -707,34 +564,11 @@ function TrackCard({
             </Badge>
           )}
 
-          {density !== "compact" && (
-            <>
-              <MetaText muted>
-                <span className="font-mono uppercase">{track.extension}</span>
-              </MetaText>
-              <MetaText muted>
-                <HardDrive className="h-3 w-3" />
-                <span className="tabular-nums">{formatSize(track.size)}</span>
-              </MetaText>
-            </>
-          )}
+          <MetaText muted>
+            <span className="font-mono uppercase">{track.extension}</span>
+          </MetaText>
         </div>
 
-        {density === "detailed" && (
-          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10.5px] text-muted-foreground/80">
-            <span className="truncate" title={track.originalName}>
-              Nom d'origine : {track.originalName}
-            </span>
-            <span className="truncate">
-              Statut : {STATUS_LABEL[track.analysisStatus]}
-            </span>
-            {track.path && (
-              <span className="col-span-2 truncate opacity-70" title={track.path}>
-                {track.path}
-              </span>
-            )}
-          </div>
-        )}
       </div>
     </li>
   );
