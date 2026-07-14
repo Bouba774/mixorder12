@@ -408,7 +408,7 @@ function RecentActivity({
   projectCreatedAt,
   sets,
 }: {
-  journal: ReturnType<typeof useRobotJournal>;
+  journal: import("@/lib/analysis/robot-journal").JournalEntry[];
   renameBatches: RenameBatch[];
   projectCreatedAt: number;
   sets: ReturnType<typeof useSetBuilder>["sets"];
