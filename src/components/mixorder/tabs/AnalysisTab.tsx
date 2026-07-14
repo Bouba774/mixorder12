@@ -51,6 +51,12 @@ export function AnalysisTab() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        icon={Waves}
+        eyebrow="Analyse"
+        title="Détection des tonalités"
+        subtitle="Moteur hybride local. Priorité automatique quand le Robot est actif."
+      />
       <div className="rounded-xl border border-border bg-surface p-4">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent/40 text-primary">
