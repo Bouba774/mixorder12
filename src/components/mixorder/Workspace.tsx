@@ -19,13 +19,14 @@ import { usePlayer } from "@/lib/player/player-context";
  * `useWorkspace()` state and its persisted snapshot.
  */
 
-type TabId = "library" | "robot" | "analysis" | "duplicates" | "rename";
+type TabId = "library" | "robot" | "analysis" | "duplicates" | "setbuilder" | "rename";
 
 const TABS: Array<{ id: TabId; label: string; icon: typeof Library }> = [
   { id: "library", label: "Bibliothèque", icon: Library },
   { id: "robot", label: "Robot", icon: Bot },
   { id: "analysis", label: "Analyse", icon: Waves },
   { id: "duplicates", label: "Doublons", icon: Copy },
+  { id: "setbuilder", label: "Set Builder", icon: ListMusic },
   { id: "rename", label: "Renommage", icon: Pencil },
 ];
 
