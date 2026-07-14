@@ -438,6 +438,60 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setProject((p) => (p ? { ...p, tracks: p.tracks.filter((t) => !set.has(t.id)) } : p));
   }, []);
 
+  const mergeAndRemoveDuplicates = useCallback<
+    WorkspaceContextValue["mergeAndRemoveDuplicates"]
+  >((keeperId, sourceIds) => {
+    setProject((p) => {
+      if (!p) return p;
+      const keeper = p.tracks.find((t) => t.id === keeperId);
+      if (!keeper) return p;
+      const removeSet = new Set(sourceIds.filter((id) => id !== keeperId));
+      const sources = p.tracks.filter((t) => removeSet.has(t.id));
+      // Merge missing scalar metadata + concatenate rename history.
+      let bpm = keeper.bpm;
+      let musicalKey = keeper.musicalKey;
+      let favorite = keeper.favorite;
+      const renameHistory = [...keeper.renameHistory];
+      let addedAt = keeper.addedAt;
+      for (const s of sources) {
+        if (bpm == null && s.bpm != null) bpm = s.bpm;
+        if (!musicalKey && s.musicalKey) musicalKey = s.musicalKey;
+        if (!favorite && s.favorite) favorite = true;
+        for (const h of s.renameHistory) renameHistory.push(h);
+        if (s.addedAt && s.addedAt < addedAt) addedAt = s.addedAt;
+      }
+      const mergedKeeper: Track = {
+        ...keeper,
+        bpm,
+        musicalKey,
+        camelot: toCamelot(musicalKey),
+        favorite,
+        renameHistory,
+        addedAt,
+        analysisStatus:
+          bpm != null || musicalKey ? "done" : keeper.analysisStatus,
+      };
+      const nextTracks = p.tracks
+        .filter((t) => !removeSet.has(t.id))
+        .map((t) => (t.id === keeperId ? mergedKeeper : t));
+      const nextProject = { ...p, tracks: nextTracks };
+      // Persist merged keeper metadata to snapshot.
+      const fp = projectFingerprint(nextProject);
+      const snap = loadSnapshot(fp);
+      const merged = upsertTrackData(snap, nextProject.name, keeper.path, {
+        source: "manual-discdj",
+        bpm,
+        musicalKey,
+        favorite,
+        renameHistory,
+        addedAt,
+      } as never);
+      saveSnapshot(fp, merged);
+      return nextProject;
+    });
+  }, []);
+
+
   const reorderTracks = useCallback((orderedIds: TrackId[]) => {
     setProject((p) => {
       if (!p) return p;
