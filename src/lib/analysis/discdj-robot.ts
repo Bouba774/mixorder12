@@ -804,6 +804,7 @@ export function useDiscDJRobot() {
           toVerify,
         };
         log("success", `AutoSync terminé : ${foundBpms.length}/${total} morceaux associés · ${toVerify.length} à vérifier.`);
+        keyAnalysisEngine.setSlowMode(false);
         setState((s) => ({
           ...s,
           phase: "done",
