@@ -49,7 +49,7 @@ const CONF_META: Record<
 type FilterKind = "all" | DupConfidence | "ignored";
 
 export function DuplicatesTab() {
-  const { project, mergeAndRemoveDuplicates, toggleFavorite } = useWorkspace();
+  const { project, mergeAndRemoveDuplicates } = useWorkspace();
   const { groups, state, ignoreGroup, restoreIgnored, setKeeper } = useDuplicates();
   const [filter, setFilter] = useState<FilterKind>("all");
   const [extFilter, setExtFilter] = useState<string>("all");
