@@ -36,6 +36,8 @@ import {
 } from "./persistence";
 import type { AnalysisSnapshot } from "./types";
 import { findBestMatch, normalizeTrackName, similarity } from "./name-normalize";
+import { appendJournal, type JournalEntry } from "./robot-journal";
+import { keyAnalysisEngine } from "@/lib/key-analysis/engine";
 
 /**
  * DiscDJ analysis robot — headless orchestrator.
@@ -329,6 +331,9 @@ export function useDiscDJRobot() {
       backgroundRunRef.current = false;
     }
     log("warning", "Analyse interrompue par l'utilisateur.");
+    // Release the key-analysis engine from slow mode — the robot is done
+    // holding the CPU.
+    keyAnalysisEngine.setSlowMode(false);
     setState((s) => ({
       ...s,
       phase: s.phase === "done" ? "done" : "paused",
@@ -432,6 +437,11 @@ export function useDiscDJRobot() {
         setState((s) => ({ ...s, phase: "error", errorMessage: message }));
         return;
       }
+
+      // Robot has priority: throttle the background key-analysis engine
+      // so it never fights the OCR / accessibility loop for CPU. It is
+      // released again in `stop()` and at the end of the run.
+      keyAnalysisEngine.setSlowMode(true);
 
       log("info", "Vérification du robot DiscDJ…");
       const readiness = await bridge.isReady();
