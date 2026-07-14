@@ -876,6 +876,16 @@ export function useDiscDJRobot() {
               setTrackAnalysis(track.id, { bpm: voted.bpm }, "discdj-auto");
               processedRef.current.add(track.id);
               foundBpms.push({ index: i + 1, name: track.name, bpm: voted.bpm });
+              appendJournal(fingerprint, {
+                ts: Date.now(),
+                trackId: track.id,
+                name: track.name,
+                bpm: voted.bpm,
+                outcome: "success",
+                durationMs: 0,
+                attempts: voted.attempts,
+                message: `Vote ×${voted.voteCount}/${voted.attempts}`,
+              });
               if (settings.autosaveEachStep) {
                 snapshot = markRun(
                   snapshot ?? { v: 1, name: p.name, tracks: {} },
