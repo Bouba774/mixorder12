@@ -231,7 +231,7 @@ export function HomeTab({ onNavigate, onChangeLibrary }: HomeTabProps) {
           subtitle="Où vous vous êtes arrêté"
         />
         <RecentActivity
-          journal={journal as import("@/lib/analysis/robot-journal").JournalEntry[]}
+          journal={journal}
           renameBatches={renameBatches}
           projectCreatedAt={project.createdAt}
           sets={sets}
