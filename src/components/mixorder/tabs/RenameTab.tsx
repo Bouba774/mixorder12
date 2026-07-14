@@ -40,6 +40,7 @@ import {
   type RenameBatch,
 } from "@/lib/rename/history";
 import { projectFingerprint } from "@/lib/analysis/persistence";
+import { PageHeader } from "../PageHeader";
 
 type Step = "template" | "preview" | "confirm";
 
