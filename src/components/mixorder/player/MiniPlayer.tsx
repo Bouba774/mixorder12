@@ -20,7 +20,12 @@ import { formatDuration } from "@/lib/workspace-context";
  * scrubbing, transport controls (previous / play-pause / next), volume,
  * and a close button that fully unloads the audio element.
  */
-export function MiniPlayer() {
+export interface MiniPlayerProps {
+  /** Pixels to lift the player above the viewport bottom (e.g. BottomNav height). */
+  bottomOffset?: number;
+}
+
+export function MiniPlayer({ bottomOffset = 0 }: MiniPlayerProps = {}) {
   const {
     currentTrack,
     trackId,
