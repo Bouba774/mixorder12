@@ -7,6 +7,9 @@ import { RobotTab } from "./tabs/RobotTab";
 import { AnalysisTab } from "./tabs/AnalysisTab";
 import { DuplicatesTab } from "./tabs/DuplicatesTab";
 import { RenameTab } from "./tabs/RenameTab";
+import { MiniPlayer } from "./player/MiniPlayer";
+import { usePlayer } from "@/lib/player/player-context";
+
 
 /**
  * The Workspace is the single shell every feature of MixOrder lives in.
@@ -28,6 +31,8 @@ const TABS: Array<{ id: TabId; label: string; icon: typeof Library }> = [
 export function Workspace() {
   const { project, closeProject, isIndexing, lastImportDiff } = useWorkspace();
   const [tab, setTab] = useState<TabId>("library");
+  const { trackId: playingId } = usePlayer();
+
 
   if (!project) return null;
 
@@ -87,13 +92,16 @@ export function Workspace() {
         </div>
       )}
 
-      <main className="flex-1 px-4 py-5 pb-24">
+      <main className={`flex-1 px-4 py-5 ${playingId ? "pb-40" : "pb-24"}`}>
         {tab === "library" && <LibraryTab />}
         {tab === "robot" && <RobotTab />}
         {tab === "analysis" && <AnalysisTab />}
         {tab === "duplicates" && <DuplicatesTab />}
         {tab === "rename" && <RenameTab />}
       </main>
+
+      <MiniPlayer />
+
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import {
-  Music2, Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
+  Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
   CheckSquare, Square, X, Trash2, Check, Star, Settings2,
 } from "lucide-react";
 import {
@@ -16,6 +16,8 @@ import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifi
 import { formatDuration, useWorkspace, type Track, type TrackId } from "@/lib/workspace-context";
 import { useLibraryView } from "@/lib/library/view-context";
 import { SORT_OPTIONS, type SortField, type SortDir } from "@/lib/library/sort";
+import { PlayPauseButton } from "../player/PlayPauseButton";
+
 
 
 export interface ColumnPrefs {
@@ -322,23 +324,24 @@ function Row({
           <GripVertical className="h-4 w-4" />
         </button>
       )}
-      <button
-        onClick={(e) => onToggle(e.shiftKey || e.metaKey || e.ctrlKey || selectionMode)}
-        aria-label={selected ? "Désélectionner" : "Sélectionner"}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-surface-elevated"
-      >
-        {selectionMode ? (
-          selected ? (
+      {selectionMode ? (
+        <button
+          onClick={(e) => onToggle(e.shiftKey || e.metaKey || e.ctrlKey || selectionMode)}
+          aria-label={selected ? "Désélectionner" : "Sélectionner"}
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-surface-elevated"
+        >
+          {selected ? (
             <div className="grid h-4 w-4 place-items-center rounded-sm bg-primary text-primary-foreground">
               <Check className="h-3 w-3" strokeWidth={3} />
             </div>
-          ) : <div className="h-4 w-4 rounded-sm border border-border-strong" />
-        ) : (
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/40 text-primary">
-            <Music2 className="h-4 w-4" />
-          </div>
-        )}
-      </button>
+          ) : (
+            <div className="h-4 w-4 rounded-sm border border-border-strong" />
+          )}
+        </button>
+      ) : (
+        <PlayPauseButton trackId={track.id} size="md" />
+      )}
+
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
