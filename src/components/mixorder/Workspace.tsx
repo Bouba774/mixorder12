@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, FolderOpen, Loader2, Library, Bot, Waves, Copy, Pencil } from "lucide-react";
+import { ChevronLeft, FolderOpen, Loader2, Library, Bot, Waves, Copy, Pencil, ListMusic } from "lucide-react";
 import { Logo } from "./Logo";
 import { formatDuration, useWorkspace } from "@/lib/workspace-context";
 import { LibraryTab } from "./tabs/LibraryTab";
@@ -7,6 +7,7 @@ import { RobotTab } from "./tabs/RobotTab";
 import { AnalysisTab } from "./tabs/AnalysisTab";
 import { DuplicatesTab } from "./tabs/DuplicatesTab";
 import { RenameTab } from "./tabs/RenameTab";
+import { SetBuilderTab } from "./tabs/SetBuilderTab";
 import { MiniPlayer } from "./player/MiniPlayer";
 import { usePlayer } from "@/lib/player/player-context";
 
@@ -18,13 +19,14 @@ import { usePlayer } from "@/lib/player/player-context";
  * `useWorkspace()` state and its persisted snapshot.
  */
 
-type TabId = "library" | "robot" | "analysis" | "duplicates" | "rename";
+type TabId = "library" | "robot" | "analysis" | "duplicates" | "setbuilder" | "rename";
 
 const TABS: Array<{ id: TabId; label: string; icon: typeof Library }> = [
   { id: "library", label: "Bibliothèque", icon: Library },
   { id: "robot", label: "Robot", icon: Bot },
   { id: "analysis", label: "Analyse", icon: Waves },
   { id: "duplicates", label: "Doublons", icon: Copy },
+  { id: "setbuilder", label: "Set Builder", icon: ListMusic },
   { id: "rename", label: "Renommage", icon: Pencil },
 ];
 
@@ -97,6 +99,7 @@ export function Workspace() {
         {tab === "robot" && <RobotTab />}
         {tab === "analysis" && <AnalysisTab />}
         {tab === "duplicates" && <DuplicatesTab />}
+        {tab === "setbuilder" && <SetBuilderTab />}
         {tab === "rename" && <RenameTab />}
       </main>
 

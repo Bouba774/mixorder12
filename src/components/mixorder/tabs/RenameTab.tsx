@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace-context";
 import { useLibraryView } from "@/lib/library/view-context";
+import { useSetBuilder } from "@/lib/setbuilder/context";
 import { SORT_OPTIONS } from "@/lib/library/sort";
 import {
   TEMPLATES,
@@ -60,10 +61,16 @@ export function RenameTab() {
     applyView,
   } = useLibraryView();
 
-  // -------- current ordered library --------
+  // If an active Set is open, the rename module follows the Set order.
+  // Otherwise it uses the visible order of the library.
+  const { activeSet } = useSetBuilder();
   const orderedTracks = useMemo(
-    () => (project ? applyView(project.tracks) : []),
-    [project, applyView],
+    () => {
+      if (!project) return [];
+      if (activeSet && activeSet.tracks.length) return activeSet.tracks;
+      return applyView(project.tracks);
+    },
+    [project, applyView, activeSet],
   );
 
   // -------- fingerprint / persisted history --------
