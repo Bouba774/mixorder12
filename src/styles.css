@@ -70,39 +70,39 @@
   --popover: #1A1D21;
   --popover-foreground: #FAFAF8;
 
-  --primary: #D9A441;
-  --primary-foreground: #111315;
-  --primary-glow: #E8BA5E;
+  --primary: #2563EB;
+  --primary-foreground: #FFFFFF;
+  --primary-glow: #93C5FD;
 
-  --bronze: #A8732A;
+  --bronze: #1E3A8A;
 
-  --secondary: #242931;
-  --secondary-foreground: #FAFAF8;
+  --secondary: #131C2E;
+  --secondary-foreground: #E8EEFB;
 
-  --muted: #242931;
-  --muted-foreground: #9EA6B0;
+  --muted: #131C2E;
+  --muted-foreground: #9AB0D4;
 
-  --accent: #242931;
-  --accent-foreground: #FAFAF8;
+  --accent: #1E3A8A;
+  --accent-foreground: #FFFFFF;
 
-  --action: #3F7C85;
-  --action-foreground: #FAFAF8;
+  --action: #2563EB;
+  --action-foreground: #FFFFFF;
 
-  --success: #4FAF78;
-  --success-foreground: #0B1A12;
+  --success: #22C55E;
+  --success-foreground: #06180D;
 
-  --destructive: #D85B5B;
+  --destructive: #EF4444;
   --destructive-foreground: #FFF5F5;
 
-  --border: color-mix(in oklab, #FAFAF8 8%, transparent);
-  --border-strong: color-mix(in oklab, #FAFAF8 16%, transparent);
-  --input: color-mix(in oklab, #FAFAF8 10%, transparent);
-  --ring: color-mix(in oklab, #D9A441 55%, transparent);
+  --border: color-mix(in oklab, #93C5FD 14%, transparent);
+  --border-strong: color-mix(in oklab, #93C5FD 28%, transparent);
+  --input: color-mix(in oklab, #93C5FD 14%, transparent);
+  --ring: color-mix(in oklab, #2563EB 65%, transparent);
 
-  --gradient-primary: linear-gradient(135deg, #D9A441, #E8BA5E);
-  --gradient-bronze: linear-gradient(135deg, #A8732A, #D9A441);
-  --gradient-surface: linear-gradient(180deg, #1A1D21, #111315);
-  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #D9A441 18%, transparent), transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #2563EB, #93C5FD);
+  --gradient-bronze: linear-gradient(135deg, #1E3A8A, #2563EB);
+  --gradient-surface: linear-gradient(180deg, #131C2E, #0B1220);
+  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #2563EB 22%, transparent), transparent 60%);
 
   color-scheme: dark;
 }
@@ -113,51 +113,51 @@
 .light {
   --radius: 0.875rem;
 
-  --background: #F6F5F1;
-  --foreground: #14161A;
+  --background: #EFF6FF;
+  --foreground: #0B1220;
 
   --surface: #FFFFFF;
-  --surface-elevated: #FAF9F4;
+  --surface-elevated: #F5F9FF;
 
   --card: #FFFFFF;
-  --card-foreground: #14161A;
+  --card-foreground: #0B1220;
 
   --popover: #FFFFFF;
-  --popover-foreground: #14161A;
+  --popover-foreground: #0B1220;
 
-  --primary: #A8732A;
+  --primary: #2563EB;
   --primary-foreground: #FFFFFF;
-  --primary-glow: #D9A441;
+  --primary-glow: #93C5FD;
 
-  --bronze: #A8732A;
+  --bronze: #1E3A8A;
 
-  --secondary: #EEEBE1;
-  --secondary-foreground: #14161A;
+  --secondary: #DBE7FE;
+  --secondary-foreground: #1E3A8A;
 
-  --muted: #EEEBE1;
-  --muted-foreground: #5B636D;
+  --muted: #DBE7FE;
+  --muted-foreground: #475877;
 
-  --accent: #EEEBE1;
-  --accent-foreground: #14161A;
+  --accent: #93C5FD;
+  --accent-foreground: #0B1220;
 
-  --action: #3F7C85;
+  --action: #2563EB;
   --action-foreground: #FFFFFF;
 
-  --success: #2F8B54;
+  --success: #15803D;
   --success-foreground: #FFFFFF;
 
-  --destructive: #C13B3B;
+  --destructive: #DC2626;
   --destructive-foreground: #FFFFFF;
 
-  --border: color-mix(in oklab, #14161A 10%, transparent);
-  --border-strong: color-mix(in oklab, #14161A 20%, transparent);
-  --input: color-mix(in oklab, #14161A 12%, transparent);
-  --ring: color-mix(in oklab, #A8732A 45%, transparent);
+  --border: color-mix(in oklab, #1E3A8A 14%, transparent);
+  --border-strong: color-mix(in oklab, #1E3A8A 28%, transparent);
+  --input: color-mix(in oklab, #1E3A8A 16%, transparent);
+  --ring: color-mix(in oklab, #2563EB 55%, transparent);
 
-  --gradient-primary: linear-gradient(135deg, #A8732A, #D9A441);
-  --gradient-bronze: linear-gradient(135deg, #A8732A, #D9A441);
-  --gradient-surface: linear-gradient(180deg, #FFFFFF, #F6F5F1);
-  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #D9A441 14%, transparent), transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #1E3A8A, #2563EB);
+  --gradient-bronze: linear-gradient(135deg, #1E3A8A, #2563EB);
+  --gradient-surface: linear-gradient(180deg, #FFFFFF, #EFF6FF);
+  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #2563EB 14%, transparent), transparent 60%);
 
   color-scheme: light;
 }
