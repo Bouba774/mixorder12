@@ -285,8 +285,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const orderedIds = useMemo(() => {
     if (!project) return [] as string[];
+    // When an active Set contains the current track, its order takes priority
+    // over the library view — the player follows the Set Builder queue.
+    if (
+      activeOrderedIds.length &&
+      state.trackId &&
+      activeOrderedIds.includes(state.trackId)
+    ) {
+      return activeOrderedIds;
+    }
     return applyView(project.tracks).map((t) => t.id);
-  }, [project, applyView]);
+  }, [project, applyView, activeOrderedIds, state.trackId]);
 
   const next = useCallback(() => {
     if (!state.trackId) {
