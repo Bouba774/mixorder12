@@ -14,6 +14,13 @@ import { ENGINE_VERSION } from "./types";
 import type { EngineInput, EngineOutput, HybridOutput } from "./types";
 import { essentiaEngine } from "./engines/essentia";
 import { libKeyFinderEngine } from "./engines/libkeyfinder";
+import { chromagram } from "./chromagram";
+import {
+  KRUMHANSL_MAJOR, KRUMHANSL_MINOR,
+  TEMPERLEY_MAJOR, TEMPERLEY_MINOR,
+  correlateProfiles,
+} from "./profiles";
+import { toCamelot } from "@/lib/library/camelot";
 
 const HIGH_CONFIDENCE = 0.55;
 
@@ -47,7 +54,22 @@ export async function detectKeyHybrid(
 ): Promise<HybridOutput> {
   const t0 = performance.now();
 
-  const primary: EngineOutput = await essentiaEngine.detect(input, signal);
+  // Compute the chromagram ONCE and correlate with both profiles — the
+  // engine abstraction (essentiaEngine / libKeyFinderEngine) remains
+  // usable standalone, but the hybrid path avoids a duplicate FFT pass.
+  const p0 = performance.now();
+  const chroma = await chromagram(input.samples, signal);
+  const chromaMs = performance.now() - p0;
+
+  const kk = correlateProfiles(chroma, KRUMHANSL_MAJOR, KRUMHANSL_MINOR);
+  const primaryMargin = Math.max(0, kk.best.score - kk.second.score);
+  const primary: EngineOutput = {
+    engine: "essentia",
+    key: kk.best.key,
+    camelot: toCamelot(kk.best.key),
+    score: Math.min(1, Math.max(0, kk.best.score * 0.65 + primaryMargin * 4)),
+    durationMs: chromaMs,
+  };
   let verifier: EngineOutput | undefined;
   let key = primary.key;
   let camelot = primary.camelot;
@@ -56,7 +78,15 @@ export async function detectKeyHybrid(
   let needsReview = false;
 
   if (primary.score < HIGH_CONFIDENCE) {
-    verifier = await libKeyFinderEngine.detect(input, signal);
+    const tt = correlateProfiles(chroma, TEMPERLEY_MAJOR, TEMPERLEY_MINOR);
+    const verMargin = Math.max(0, tt.best.score - tt.second.score);
+    verifier = {
+      engine: "libkeyfinder",
+      key: tt.best.key,
+      camelot: toCamelot(tt.best.key),
+      score: Math.min(1, Math.max(0, tt.best.score * 0.6 + verMargin * 4)),
+      durationMs: 0,
+    };
     if (verifier.key === primary.key) {
       confidence = "high";
       confidenceScore = Math.min(1, (primary.score + verifier.score) / 2 + 0.15);
@@ -77,6 +107,9 @@ export async function detectKeyHybrid(
     // Primary confident — still promote low raw scores to "medium".
     if (primary.score < 0.7) confidence = "medium";
   }
+  // Suppress unused warnings for standalone engines — they're part of the
+  // public engine registry and future modes may call them directly.
+  void essentiaEngine; void libKeyFinderEngine;
 
   return {
     primary,
