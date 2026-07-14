@@ -529,9 +529,9 @@ function StartIndexField({ value, onCommit }: { value: number; onCommit: (v: num
 /* Step 4 — Launch                                                        */
 /* ────────────────────────────────────────────────────────────────────── */
 
-function StepLaunch({ robot, disabled }: { robot: ReturnType<typeof useDiscDJRobot>; disabled: boolean }) {
+function StepLaunch({ robot, deck, disabled }: { robot: ReturnType<typeof useDiscDJRobot>; deck: DeckId; disabled: boolean }) {
   const { state, start, openAccessibilitySettings, checkAccessibility } = robot;
-  const deck = state.settings.preferredDeck ?? 1;
+  
   const [busy, setBusy] = useState(false);
 
   const handleStart = async () => {
@@ -580,7 +580,7 @@ function StepLaunch({ robot, disabled }: { robot: ReturnType<typeof useDiscDJRob
 /* Progress view                                                          */
 /* ────────────────────────────────────────────────────────────────────── */
 
-function ProgressView({ robot }: { robot: ReturnType<typeof useDiscDJRobot> }) {
+function ProgressView({ robot, deck }: { robot: ReturnType<typeof useDiscDJRobot>; deck: DeckId }) {
   const { state, pause, resume, stop, resolvePending, skipPending } = robot;
   const phase = state.phase;
   const running = !["idle", "paused", "done", "error"].includes(phase);
@@ -609,7 +609,7 @@ function ProgressView({ robot }: { robot: ReturnType<typeof useDiscDJRobot> }) {
               {state.currentTrack?.name ?? state.currentReading?.title ?? "En attente…"}
             </p>
             <p className="truncate text-[11px] text-muted-foreground">
-              Morceau {state.currentIndex}/{state.totalIndex || state.totalRun} · Platine {state.deck ?? state.settings.preferredDeck ?? 1}
+              Morceau {state.currentIndex}/{state.totalIndex || state.totalRun} · Platine {state.deck ?? deck}
             </p>
           </div>
         </div>
@@ -713,7 +713,7 @@ function Metric({ label, value, truncate }: { label: string; value: string; trun
 /* Results view                                                           */
 /* ────────────────────────────────────────────────────────────────────── */
 
-function ResultsView({ robot }: { robot: ReturnType<typeof useDiscDJRobot> }) {
+function ResultsView({ robot, deck }: { robot: ReturnType<typeof useDiscDJRobot>; deck: DeckId }) {
   const { state, start } = robot;
   const recap = state.recap!;
   const total = recap.analyzedCount + recap.needsRetryCount;
@@ -721,7 +721,7 @@ function ResultsView({ robot }: { robot: ReturnType<typeof useDiscDJRobot> }) {
 
   const rerunErrors = async () => {
     // Restart, keeping "skip already BPM" so only unanalyzed/errored tracks are re-processed.
-    await start(state.settings.preferredDeck ?? 1);
+    await start(deck);
   };
 
   return (
