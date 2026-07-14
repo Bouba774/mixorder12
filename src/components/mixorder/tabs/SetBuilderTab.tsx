@@ -25,6 +25,7 @@ import {
   type TransitionScore,
 } from "@/lib/setbuilder/camelot-graph";
 import { PlayPauseButton } from "../player/PlayPauseButton";
+import { PageHeader } from "../PageHeader";
 
 /**
  * Set Builder — professional local playlist builder.
