@@ -319,15 +319,6 @@ export function DuplicatesTab() {
                               Garder
                             </button>
                           )}
-                          <button
-                            onClick={() => toggleFavorite(id)}
-                            className="grid h-6 w-6 place-items-center rounded-md hover:bg-accent/20"
-                            title="Favori"
-                          >
-                            <Star
-                              className={`h-3.5 w-3.5 ${t.favorite ? "fill-primary text-primary" : "text-muted-foreground"}`}
-                            />
-                          </button>
                         </div>
                       </li>
                     );
