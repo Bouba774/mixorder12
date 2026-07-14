@@ -12,7 +12,8 @@
 export type BpmSourceId =
   | "manual-discdj"
   | "discdj-auto"
-  | "essentia";
+  | "essentia"
+  | "hybrid-key";
 
 export interface BpmSourceDefinition {
   id: BpmSourceId;
@@ -44,6 +45,13 @@ export interface AnalyzedTrackData {
   addedAt?: number;
   /** Last time file metadata (size/name) changed on disk. */
   modifiedAt?: number;
+  /**
+   * Hybrid key-analysis descriptors (Essentia + LibKeyFinder).
+   * When present, `musicalKey` matches `key.key` — we store both for
+   * backwards compatibility with existing UI (musicalKey / camelot) and
+   * forward compatibility with the extensible descriptors object.
+   */
+  key?: import("../key-analysis/types").KeyAnalysisData;
 }
 
 export interface AnalysisRunMeta {

@@ -21,6 +21,8 @@ import {
 } from "./analysis/persistence";
 import type { BpmSourceId } from "./analysis/types";
 import { toCamelot } from "./library/camelot";
+import { keyAnalysisEngine } from "./key-analysis/engine";
+import type { KeyAnalysisData } from "./key-analysis/types";
 import {
   listRecentLibraries,
   touchRecentLibrary,
@@ -485,6 +487,61 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [project?.tracks.map((t) => (t.durationSec === null ? t.id : "")).join("|")]);
+
+  // ---------- Key-analysis engine wiring ----------
+  //
+  // The engine is a singleton that lives outside React (it must keep running
+  // across route/tab changes, DiscDJ robot navigation, background/foreground
+  // transitions, etc.). We register a persist callback here so results are
+  // written to the live library AND to the on-disk snapshot, then we sync
+  // the queue every time the track list changes and auto-start.
+  useEffect(() => {
+    keyAnalysisEngine.setPersistHandler((trackId, key, data: KeyAnalysisData) => {
+      setProject((p) => {
+        if (!p) return p;
+        const target = p.tracks.find((t) => t.id === trackId);
+        if (!target) return p;
+        const nextTracks = p.tracks.map((t) =>
+          t.id === trackId
+            ? {
+                ...t,
+                musicalKey: key,
+                camelot: toCamelot(key),
+                analysisStatus: "done" as const,
+              }
+            : t,
+        );
+        const nextProject = { ...p, tracks: nextTracks };
+        const fp = projectFingerprint(nextProject);
+        const snap = loadSnapshot(fp);
+        const merged = upsertTrackData(snap, nextProject.name, target.path, {
+          source: "hybrid-key",
+          musicalKey: key,
+          key: data,
+        });
+        saveSnapshot(fp, merged);
+        return nextProject;
+      });
+    });
+    return () => keyAnalysisEngine.setPersistHandler(null);
+  }, []);
+
+  // Sync the queue whenever the library changes (add / remove / reload).
+  // Auto-start: any missing key triggers background analysis.
+  useEffect(() => {
+    if (!project) return;
+    keyAnalysisEngine.syncLibrary(
+      project.tracks.map((t) => ({
+        id: t.id,
+        path: t.path,
+        name: t.name,
+        url: t.url,
+        musicalKey: t.musicalKey,
+      })),
+    );
+    const missing = project.tracks.some((t) => !t.musicalKey);
+    if (missing) keyAnalysisEngine.start();
+  }, [project?.tracks.length, project?.name]);
 
   const value = useMemo<WorkspaceContextValue>(
     () => ({
