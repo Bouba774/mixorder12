@@ -131,6 +131,7 @@ export function upsertTrackData(
         : existing?.renameHistory,
     addedAt: existing?.addedAt ?? patch.addedAt ?? Date.now(),
     modifiedAt: patch.modifiedAt ?? Date.now(),
+    key: patch.key !== undefined ? patch.key : existing?.key,
   };
   return base;
 }
