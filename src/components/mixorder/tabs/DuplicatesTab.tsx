@@ -327,7 +327,7 @@ export function DuplicatesTab() {
 
                 <div className="flex items-center justify-between gap-2 border-t border-border/60 bg-surface/60 px-3 py-2">
                   <p className="text-[10px] text-muted-foreground">
-                    La fusion transfère BPM · tonalité · favori · historique au
+                    La fusion transfère BPM · tonalité · historique au
                     morceau conservé avant suppression.
                   </p>
                   <button
