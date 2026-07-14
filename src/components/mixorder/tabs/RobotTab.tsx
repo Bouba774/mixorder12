@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Music2, Loader2, Check, AlertTriangle, Trash2 } from "lucide-react";
+import { Music2, Loader2, Check, AlertTriangle, Trash2, Bot } from "lucide-react";
+import { PageHeader } from "../PageHeader";
 import { DiscDJAccessibilityGate } from "../DiscDJAccessibilityGate";
 import { DiscDJRobotPanel } from "../DiscDJRobotPanel";
 import { useWorkspace } from "@/lib/workspace-context";
