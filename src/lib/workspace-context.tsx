@@ -619,6 +619,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       renameTrack,
       toggleFavorite,
       removeTracks,
+      mergeAndRemoveDuplicates,
       reorderTracks,
     }),
     [
@@ -636,6 +637,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       renameTrack,
       toggleFavorite,
       removeTracks,
+      mergeAndRemoveDuplicates,
       reorderTracks,
     ],
   );
