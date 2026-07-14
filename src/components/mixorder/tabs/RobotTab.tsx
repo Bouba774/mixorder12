@@ -717,7 +717,7 @@ function ResultsView({ robot, deck }: { robot: ReturnType<typeof useDiscDJRobot>
   const { state, start } = robot;
   const recap = state.recap!;
   const total = recap.analyzedCount + recap.needsRetryCount;
-  const elapsedMs = state.startedAt ? Date.now() - state.startedAt : null;
+  const elapsedMs: number | null = null;
 
   const rerunErrors = async () => {
     // Restart, keeping "skip already BPM" so only unanalyzed/errored tracks are re-processed.
