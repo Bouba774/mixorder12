@@ -74,41 +74,8 @@ export function LibraryTab() {
   const isSelectionMode = selection.size > 0;
 
   const tracks = project?.tracks ?? [];
+  const filtered = useMemo<Track[]>(() => applyView(tracks), [tracks, applyView]);
 
-  const sorted = useMemo<Track[]>(() => {
-    const arr = tracks.slice();
-    if (sortField === "manual" || sortField === "import") return arr;
-    const dir = sortDir === "asc" ? 1 : -1;
-    arr.sort((a, b) => {
-      let c = 0;
-      switch (sortField) {
-        case "name": c = cmpStr(a.name, b.name); break;
-        case "duration": c = cmpNum(a.durationSec, b.durationSec); break;
-        case "bpm": c = cmpNum(a.bpm, b.bpm); break;
-        case "key": c = cmpKey(a.musicalKey, b.musicalKey); break;
-        case "camelot": c = cmpStr(a.camelot, b.camelot); break;
-        case "added": c = a.addedAt - b.addedAt; break;
-        case "size": c = a.size - b.size; break;
-      }
-      return c * dir;
-    });
-    return arr;
-  }, [tracks, sortField, sortDir]);
-
-  const filtered = useMemo<Track[]>(() => {
-    let arr = sorted;
-    if (favOnly) arr = arr.filter((t) => t.favorite);
-    const q = query.trim().toLowerCase();
-    if (!q) return arr;
-    return arr.filter((t) =>
-      t.name.toLowerCase().includes(q) ||
-      t.originalName.toLowerCase().includes(q) ||
-      (t.musicalKey?.toLowerCase().includes(q) ?? false) ||
-      (t.camelot?.toLowerCase().includes(q) ?? false) ||
-      (t.bpm != null && String(Math.round(t.bpm)).includes(q)) ||
-      t.extension.includes(q),
-    );
-  }, [sorted, query, favOnly]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
