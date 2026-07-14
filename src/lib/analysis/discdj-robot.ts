@@ -717,6 +717,16 @@ export function useDiscDJRobot() {
             setTrackAnalysis(matched.id, { bpm }, "discdj-auto");
             processedRef.current.add(matched.id);
             foundBpms.push({ index: i + 1, name: matched.name, bpm, ocrName: cleaned, score: match.score });
+            appendJournal(fingerprint, {
+              ts: Date.now(),
+              trackId: matched.id,
+              name: matched.name,
+              bpm,
+              outcome: "success",
+              durationMs: Date.now() - runStartedAt,
+              attempts: 1,
+              message: `OCR « ${cleaned} » · score ${(match.score * 100).toFixed(0)}%`,
+            } satisfies JournalEntry);
             snapshot = markRun(
               snapshot ?? { v: 1, name: p.name, tracks: {} },
               p.name,
