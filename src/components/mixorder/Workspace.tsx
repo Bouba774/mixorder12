@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, FolderOpen, Loader2, Library, Bot, Waves, Copy, Pencil, ListMusic } from "lucide-react";
 import { Logo } from "./Logo";
+import { ThemeToggle } from "./ThemeToggle";
 import { formatDuration, useWorkspace } from "@/lib/workspace-context";
 import { LibraryTab } from "./tabs/LibraryTab";
 import { RobotTab } from "./tabs/RobotTab";
@@ -64,7 +65,7 @@ export function Workspace() {
               </p>
             </div>
           </div>
-          <div className="w-9" />
+          <ThemeToggle />
         </div>
 
         {/* Tabs bar */}

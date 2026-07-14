@@ -30,63 +30,136 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-action: var(--action);
+  --color-action-foreground: var(--action-foreground);
+  --color-bronze: var(--bronze);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Sora", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", "SF Pro Display", "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --shadow-glow: 0 0 40px -8px color-mix(in oklab, var(--primary) 45%, transparent);
+  --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.25);
+  --shadow-sm: 0 2px 6px -1px oklch(0 0 0 / 0.3);
+  --shadow-md: 0 6px 20px -6px oklch(0 0 0 / 0.4);
+  --shadow-lg: 0 20px 40px -12px oklch(0 0 0 / 0.5);
+  --shadow-glow: 0 0 32px -8px color-mix(in oklab, var(--primary) 55%, transparent);
   --shadow-elevated: 0 20px 60px -20px oklch(0 0 0 / 0.6);
 }
 
-:root {
-  --radius: 0.75rem;
+/* =========================================================
+   DARK THEME (default) — Obsidian + Gold
+   ========================================================= */
+:root,
+.dark {
+  --radius: 0.875rem;
 
-  /* Premium dark palette — obsidian + gold */
-  --background: oklch(0.14 0.005 260);
-  --foreground: oklch(0.97 0.005 260);
+  --background: #111315;
+  --foreground: #FAFAF8;
 
-  --surface: oklch(0.17 0.006 260);
-  --surface-elevated: oklch(0.21 0.008 260);
+  --surface: #1A1D21;
+  --surface-elevated: #242931;
 
-  --card: oklch(0.18 0.006 260);
-  --card-foreground: oklch(0.97 0.005 260);
+  --card: #1A1D21;
+  --card-foreground: #FAFAF8;
 
-  --popover: oklch(0.19 0.007 260);
-  --popover-foreground: oklch(0.97 0.005 260);
+  --popover: #1A1D21;
+  --popover-foreground: #FAFAF8;
 
-  /* Gold from logo */
-  --primary: oklch(0.78 0.13 80);
-  --primary-foreground: oklch(0.16 0.005 260);
-  --primary-glow: oklch(0.86 0.14 85);
+  --primary: #D9A441;
+  --primary-foreground: #111315;
+  --primary-glow: #E8BA5E;
 
-  --secondary: oklch(0.24 0.008 260);
-  --secondary-foreground: oklch(0.97 0.005 260);
+  --bronze: #A8732A;
 
-  --muted: oklch(0.22 0.007 260);
-  --muted-foreground: oklch(0.68 0.01 260);
+  --secondary: #242931;
+  --secondary-foreground: #FAFAF8;
 
-  --accent: oklch(0.28 0.02 80);
-  --accent-foreground: oklch(0.97 0.005 260);
+  --muted: #242931;
+  --muted-foreground: #9EA6B0;
 
-  --destructive: oklch(0.62 0.22 25);
-  --destructive-foreground: oklch(0.98 0.005 260);
+  --accent: #242931;
+  --accent-foreground: #FAFAF8;
 
-  --border: oklch(1 0 0 / 0.07);
-  --border-strong: oklch(1 0 0 / 0.14);
-  --input: oklch(1 0 0 / 0.1);
-  --ring: oklch(0.78 0.13 80 / 0.6);
+  --action: #3F7C85;
+  --action-foreground: #FAFAF8;
 
-  --gradient-primary: linear-gradient(135deg, var(--primary), var(--primary-glow));
-  --gradient-surface: linear-gradient(180deg, oklch(0.19 0.007 260), oklch(0.14 0.005 260));
-  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, var(--primary) 18%, transparent), transparent 60%);
+  --success: #4FAF78;
+  --success-foreground: #0B1A12;
+
+  --destructive: #D85B5B;
+  --destructive-foreground: #FFF5F5;
+
+  --border: color-mix(in oklab, #FAFAF8 8%, transparent);
+  --border-strong: color-mix(in oklab, #FAFAF8 16%, transparent);
+  --input: color-mix(in oklab, #FAFAF8 10%, transparent);
+  --ring: color-mix(in oklab, #D9A441 55%, transparent);
+
+  --gradient-primary: linear-gradient(135deg, #D9A441, #E8BA5E);
+  --gradient-bronze: linear-gradient(135deg, #A8732A, #D9A441);
+  --gradient-surface: linear-gradient(180deg, #1A1D21, #111315);
+  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #D9A441 18%, transparent), transparent 60%);
+
+  color-scheme: dark;
 }
 
-.dark {
-  color-scheme: dark;
+/* =========================================================
+   LIGHT THEME — Same identity, inverted surfaces
+   ========================================================= */
+.light {
+  --radius: 0.875rem;
+
+  --background: #F6F5F1;
+  --foreground: #14161A;
+
+  --surface: #FFFFFF;
+  --surface-elevated: #FAF9F4;
+
+  --card: #FFFFFF;
+  --card-foreground: #14161A;
+
+  --popover: #FFFFFF;
+  --popover-foreground: #14161A;
+
+  --primary: #A8732A;
+  --primary-foreground: #FFFFFF;
+  --primary-glow: #D9A441;
+
+  --bronze: #A8732A;
+
+  --secondary: #EEEBE1;
+  --secondary-foreground: #14161A;
+
+  --muted: #EEEBE1;
+  --muted-foreground: #5B636D;
+
+  --accent: #EEEBE1;
+  --accent-foreground: #14161A;
+
+  --action: #3F7C85;
+  --action-foreground: #FFFFFF;
+
+  --success: #2F8B54;
+  --success-foreground: #FFFFFF;
+
+  --destructive: #C13B3B;
+  --destructive-foreground: #FFFFFF;
+
+  --border: color-mix(in oklab, #14161A 10%, transparent);
+  --border-strong: color-mix(in oklab, #14161A 20%, transparent);
+  --input: color-mix(in oklab, #14161A 12%, transparent);
+  --ring: color-mix(in oklab, #A8732A 45%, transparent);
+
+  --gradient-primary: linear-gradient(135deg, #A8732A, #D9A441);
+  --gradient-bronze: linear-gradient(135deg, #A8732A, #D9A441);
+  --gradient-surface: linear-gradient(180deg, #FFFFFF, #F6F5F1);
+  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #D9A441 14%, transparent), transparent 60%);
+
+  color-scheme: light;
 }
 
 html,
@@ -95,7 +168,9 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01", "cv11";
 }
 
 body {
@@ -106,6 +181,11 @@ body {
 @layer base {
   * {
     border-color: var(--color-border);
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
   }
 
   ::selection {
@@ -125,6 +205,10 @@ body {
   background: var(--gradient-primary);
 }
 
+@utility bg-gradient-bronze {
+  background: var(--gradient-bronze);
+}
+
 @utility bg-gradient-surface {
   background: var(--gradient-surface);
 }
@@ -133,19 +217,31 @@ body {
   box-shadow: var(--shadow-glow);
 }
 
+@utility shadow-card {
+  box-shadow: var(--shadow-sm);
+}
+
+@utility shadow-card-lg {
+  box-shadow: var(--shadow-md);
+}
+
 @utility glass {
-  background: color-mix(in oklab, var(--surface) 70%, transparent);
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--border);
 }
 
-/* Subtle ambient pulse for the logo mark */
+@utility ring-focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+}
+
+/* ========== Animations ========== */
 @keyframes ambient-pulse {
   0%, 100% { opacity: 0.5; transform: scale(1); }
   50% { opacity: 0.9; transform: scale(1.05); }
 }
-
 @utility animate-ambient {
   animation: ambient-pulse 6s ease-in-out infinite;
 }
@@ -154,7 +250,29 @@ body {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
-
 @utility animate-fade-up {
-  animation: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@utility animate-fade-in {
+  animation: fade-in 0.35s ease-out both;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@utility animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--muted) 90%, transparent) 0%,
+    color-mix(in oklab, var(--surface-elevated) 100%, transparent) 50%,
+    color-mix(in oklab, var(--muted) 90%, transparent) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
