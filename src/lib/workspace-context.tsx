@@ -546,7 +546,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [project?.tracks.map((t) => (t.durationSec === null ? t.id : "")).join("|")]);
+    // Re-run only when the pending-count changes — cheap primitive instead of
+    // an O(n) join executed on every render, which becomes expensive on
+    // multi-thousand-track libraries.
+  }, [project, project?.tracks.filter((t) => t.durationSec === null).length]);
 
   // ---------- Key-analysis engine wiring ----------
   //
