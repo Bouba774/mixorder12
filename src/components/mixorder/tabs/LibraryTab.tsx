@@ -14,12 +14,12 @@
  * data compatibility but is no longer surfaced in the UI.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
   X, Trash2, Check,
-  FolderInput, Move, AlertCircle, Music2, Copy,
-  Clock, SlidersHorizontal, Info, Signal,
+  FolderInput, Move, Music2, Copy,
+  Clock, SlidersHorizontal,
 } from "lucide-react";
 import {
   DndContext, PointerSensor, TouchSensor, KeyboardSensor,
