@@ -1,12 +1,31 @@
-import { useCallback, useMemo, useState } from "react";
+/**
+ * LibraryTab — the main working surface of MixOrder.
+ *
+ * This screen is the "cœur" of the app: it lists every track in the
+ * current project, exposes search / filters / sort / reorder / selection
+ * and links out to every other module (Robot, Analysis, Duplicates,
+ * Rename, Set Builder). The rendering here is purely presentational —
+ * all business logic lives in workspace-context / library/view-context /
+ * duplicates & analysis engines. Editing this file must not touch that
+ * logic.
+ *
+ * Removed: favorites system (both the star toggle and the "favorites
+ * only" filter). The `favorite` field on `Track` is kept for persisted
+ * data compatibility but is no longer surfaced in the UI.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
-  CheckSquare, Square, X, Trash2, Check, Star, Settings2,
-  Library as LibraryIcon, FolderInput,
+  CheckSquare, Square, X, Trash2, Check, Settings2,
+  Library as LibraryIcon, FolderInput, Filter, ListChecks,
+  Move, Rows3, Rows4, LayoutGrid, AlertCircle, Music2, Copy,
+  Clock, HardDrive, KeyRound, Activity, Sparkles,
 } from "lucide-react";
 import {
   DndContext, PointerSensor, TouchSensor, KeyboardSensor,
-  useSensor, useSensors, closestCenter, type DragEndEvent,
+  useSensor, useSensors, closestCenter,
+  type DragEndEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext, arrayMove, useSortable,
@@ -16,91 +35,124 @@ import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { formatDuration, useWorkspace, type Track, type TrackId } from "@/lib/workspace-context";
 import { useLibraryView } from "@/lib/library/view-context";
-import { SORT_OPTIONS, type SortField, type SortDir } from "@/lib/library/sort";
+import { SORT_OPTIONS } from "@/lib/library/sort";
+import { useDuplicates } from "@/hooks/useDuplicates";
 import { PlayPauseButton } from "../player/PlayPauseButton";
-import { PageHeader, HeaderStat } from "../PageHeader";
+import { PageHeader } from "../PageHeader";
 
+// ─────────────────────────────────────────────────────────────
+// Types & constants
+// ─────────────────────────────────────────────────────────────
 
+type Density = "compact" | "comfort" | "detailed";
+const DENSITY_KEY = "mixorder.library.density";
 
-export interface ColumnPrefs {
-  duration: boolean;
-  bpm: boolean;
-  key: boolean;
-  camelot: boolean;
-  type: boolean;
-  size: boolean;
-  extension: boolean;
-  date: boolean;
-  path: boolean;
-}
-const DEFAULT_COLS: ColumnPrefs = {
-  duration: true, bpm: true, key: true, camelot: true,
-  type: false, size: false, extension: true, date: false, path: false,
-};
+type FilterKey =
+  | "no-bpm"
+  | "no-key"
+  | "duplicates"
+  | "analyzed"
+  | "pending";
+
+const FILTER_DEFS: Array<{ id: FilterKey; label: string; icon: typeof AlertCircle }> = [
+  { id: "no-bpm", label: "Sans BPM", icon: Activity },
+  { id: "no-key", label: "Sans tonalité", icon: KeyRound },
+  { id: "duplicates", label: "Doublons", icon: Copy },
+  { id: "analyzed", label: "Analysés", icon: Sparkles },
+  { id: "pending", label: "À analyser", icon: Clock },
+];
+
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
 
 function formatSize(bytes: number): string {
   if (!bytes) return "—";
   const mb = bytes / (1024 * 1024);
-  if (mb >= 1) return `${mb.toFixed(1)} MB`;
-  return `${(bytes / 1024).toFixed(0)} KB`;
-}
-function formatDate(ts: number): string {
-  if (!ts) return "—";
-  const d = new Date(ts);
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
+  if (mb >= 1) return `${mb.toFixed(1)} Mo`;
+  return `${(bytes / 1024).toFixed(0)} Ko`;
 }
 
+function formatTotalDuration(seconds: number): string {
+  if (!seconds) return "0 min";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h} h ${m.toString().padStart(2, "0")}`;
+  return `${m} min`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Main component
+// ─────────────────────────────────────────────────────────────
+
 export function LibraryTab() {
-  const { project, reorderTracks, removeTracks, toggleFavorite, isIndexing, closeProject } =
-    useWorkspace();
+  const {
+    project, reorderTracks, removeTracks,
+    isIndexing, closeProject,
+  } = useWorkspace();
   const {
     query, setQuery,
     sortField, setSortField,
     sortDir, setSortDir,
-    favOnly, setFavOnly,
     applyView,
   } = useLibraryView();
+  const { groups: dupGroups } = useDuplicates();
+
   const [selection, setSelection] = useState<Set<TrackId>>(new Set());
+  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set());
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
-  const [colsOpen, setColsOpen] = useState(false);
-  const [cols, setCols] = useState<ColumnPrefs>(DEFAULT_COLS);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [density, setDensity] = useState<Density>(() => {
+    if (typeof window === "undefined") return "comfort";
+    const stored = window.localStorage.getItem(DENSITY_KEY);
+    return stored === "compact" || stored === "detailed" ? stored : "comfort";
+  });
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DENSITY_KEY, density);
+    }
+  }, [density]);
 
-  const clearSelection = useCallback(() => setSelection(new Set()), []);
-  const toggleSelect = useCallback((id: TrackId, additive: boolean) => {
+  const tracks = project?.tracks ?? [];
+
+  // Set of track ids that live inside a duplicate group.
+  const duplicateIds = useMemo(() => {
+    const s = new Set<TrackId>();
+    for (const g of dupGroups) for (const id of g.trackIds) s.add(id);
+    return s;
+  }, [dupGroups]);
+
+  // Filtered + sorted view.
+  const filtered = useMemo<Track[]>(() => {
+    const base = applyView(tracks);
+    if (activeFilters.size === 0) return base;
+    return base.filter((t) => {
+      if (activeFilters.has("no-bpm") && t.bpm != null) return false;
+      if (activeFilters.has("no-key") && t.musicalKey) return false;
+      if (activeFilters.has("duplicates") && !duplicateIds.has(t.id)) return false;
+      if (activeFilters.has("analyzed") && t.analysisStatus !== "done") return false;
+      if (activeFilters.has("pending") && t.analysisStatus !== "pending") return false;
+      return true;
+    });
+  }, [tracks, applyView, activeFilters, duplicateIds]);
+
+  // ── Selection helpers ──
+  const clearSelection = useCallback(() => {
+    setSelection(new Set());
+    setSelectionMode(false);
+  }, []);
+  const toggleSelect = useCallback((id: TrackId) => {
     setSelection((prev) => {
-      const next = additive ? new Set(prev) : new Set<TrackId>();
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }, []);
-  const isSelectionMode = selection.size > 0;
-
-  const tracks = project?.tracks ?? [];
-  const filtered = useMemo<Track[]>(() => applyView(tracks), [tracks, applyView]);
-
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-  const canReorder = sortField === "manual" && !query.trim() && !favOnly;
-
-  const handleDragEnd = useCallback((e: DragEndEvent) => {
-    if (!project) return;
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    const ids = project.tracks.map((t) => t.id);
-    const from = ids.indexOf(active.id as TrackId);
-    const to = ids.indexOf(over.id as TrackId);
-    if (from < 0 || to < 0) return;
-    reorderTracks(arrayMove(ids, from, to));
-  }, [project, reorderTracks]);
-
   const selectAllVisible = useCallback(() => {
     setSelection(new Set(filtered.map((t) => t.id)));
+    setSelectionMode(true);
   }, [filtered]);
   const invertSelection = useCallback(() => {
     setSelection((prev) => {
@@ -115,12 +167,62 @@ export function LibraryTab() {
     clearSelection();
   }, [selection, removeTracks, clearSelection]);
 
+  // ── Filter helpers ──
+  const toggleFilter = useCallback((f: FilterKey) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(f)) next.delete(f); else next.add(f);
+      return next;
+    });
+  }, []);
+  const clearFilters = useCallback(() => setActiveFilters(new Set()), []);
+
+  // ── DnD ──
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const canReorder =
+    reorderMode &&
+    sortField === "manual" &&
+    !query.trim() &&
+    activeFilters.size === 0;
+
+  const handleDragStart = useCallback((_e: DragStartEvent) => {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try { navigator.vibrate?.(15); } catch { /* noop */ }
+    }
+  }, []);
+  const handleDragEnd = useCallback((e: DragEndEvent) => {
+    if (!project) return;
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const ids = project.tracks.map((t) => t.id);
+    const from = ids.indexOf(active.id as TrackId);
+    const to = ids.indexOf(over.id as TrackId);
+    if (from < 0 || to < 0) return;
+    reorderTracks(arrayMove(ids, from, to));
+  }, [project, reorderTracks]);
+
   if (!project) return null;
 
-  const activeSortLabel = SORT_OPTIONS.find((s) => s.id === sortField)?.label ?? "Perso";
+  // ── Summary metrics ──
+  const totalTracks = project.tracks.length;
+  const bpmCount = project.tracks.filter((t) => t.bpm != null).length;
+  const keyCount = project.tracks.filter((t) => Boolean(t.musicalKey)).length;
+  const totalDuration = project.tracks.reduce(
+    (acc, t) => acc + (t.durationSec ?? 0),
+    0,
+  );
+
+  const activeSortLabel =
+    SORT_OPTIONS.find((s) => s.id === sortField)?.label ?? "Perso";
+
+  const isFiltering = query.trim().length > 0 || activeFilters.size > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 pb-4">
       <PageHeader
         icon={LibraryIcon}
         eyebrow="Bibliothèque"
@@ -128,137 +230,186 @@ export function LibraryTab() {
         subtitle={
           isIndexing
             ? "Indexation en cours…"
-            : `${project.tracks.length} morceau${project.tracks.length > 1 ? "x" : ""}`
-        }
-        meta={
-          <>
-            <HeaderStat label="Total" value={project.tracks.length} />
-            <HeaderStat label="Filtrés" value={filtered.length} />
-            {isSelectionMode && (
-              <HeaderStat label="Sélection" value={selection.size} />
-            )}
-          </>
+            : "Centre de travail de MixOrder"
         }
         actions={
-          <>
-            <button
-              type="button"
-              onClick={closeProject}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-elevated px-3 text-xs font-medium text-foreground hover:border-border-strong"
-            >
-              <FolderInput className="h-3.5 w-3.5" />
-              Changer de bibliothèque
-            </button>
-            <button
-              type="button"
-              onClick={() => setColsOpen(true)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-elevated px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-              Paramètres
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={closeProject}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface-elevated px-3 text-xs font-medium text-foreground hover:border-border-strong"
+          >
+            <FolderInput className="h-3.5 w-3.5" />
+            Changer
+          </button>
         }
       />
 
-      <div className="space-y-2.5">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher titre, BPM, tonalité, extension…"
-            className="h-11 w-full rounded-xl border border-border bg-surface pl-10 pr-9 text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring"
+      {/* ─────── Summary card ─────── */}
+      <section
+        aria-label="Récapitulatif de la bibliothèque"
+        className="rounded-2xl border border-border bg-surface p-4 shadow-sm animate-fade-in"
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+              Bibliothèque active
+            </p>
+            <h2 className="truncate font-display text-base font-semibold text-foreground">
+              {project.name || "Sans nom"}
+            </h2>
+          </div>
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <LibraryIcon className="h-5 w-5" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          <SummaryStat icon={Music2} label="Morceaux" value={totalTracks} />
+          <SummaryStat icon={Activity} label="BPM" value={bpmCount} />
+          <SummaryStat icon={KeyRound} label="Tonalités" value={keyCount} />
+          <SummaryStat icon={Copy} label="Doublons" value={dupGroups.length} />
+          <SummaryStat
+            icon={Clock}
+            label="Durée"
+            value={formatTotalDuration(totalDuration)}
           />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              aria-label="Effacer"
-              className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <SummaryStat
+            icon={HardDrive}
+            label="Formats"
+            value={new Set(project.tracks.map((t) => t.extension)).size}
+          />
         </div>
+      </section>
 
-        <div className="flex flex-wrap items-center gap-2">
+      {/* ─────── Search ─────── */}
+      <div className="relative animate-fade-in">
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Rechercher : titre, BPM, tonalité, extension, durée…"
+          className="h-12 w-full rounded-2xl border border-border bg-surface pl-11 pr-11 text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        {query && (
           <button
-            onClick={() => setSortSheetOpen(true)}
-            className="inline-flex h-9 min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 text-xs font-medium text-foreground hover:border-border-strong"
+            onClick={() => setQuery("")}
+            aria-label="Effacer la recherche"
+            className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
           >
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <ArrowUpDown className="h-3.5 w-3.5" /> Trier
-            </span>
-            <span className="flex items-center gap-1 text-foreground truncate">
-              {activeSortLabel}
-              {sortField !== "manual" && sortField !== "import" && (
-                sortDir === "asc"
-                  ? <ArrowUp className="h-3 w-3 text-primary" />
-                  : <ArrowDown className="h-3 w-3 text-primary" />
-              )}
-            </span>
+            <X className="h-4 w-4" />
           </button>
-          <button
-            onClick={() => setFavOnly(!favOnly)}
-            aria-pressed={favOnly}
-            className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${
-              favOnly ? "border-primary/40 bg-accent/40 text-primary" : "border-border bg-surface text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Star className={`h-3.5 w-3.5 ${favOnly ? "fill-current" : ""}`} />
-          </button>
-          <button
-            onClick={() => setColsOpen(true)}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={isSelectionMode ? clearSelection : selectAllVisible}
-            className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${
-              isSelectionMode ? "border-primary/40 bg-accent/40 text-primary" : "border-border bg-surface text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {isSelectionMode ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
-            {isSelectionMode ? selection.size : "Sélect."}
-          </button>
-        </div>
+        )}
       </div>
 
+      {/* ─────── Filter chips ─────── */}
+      <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <FilterChip
+          active={activeFilters.size === 0}
+          onClick={clearFilters}
+          icon={Filter}
+          label="Tous"
+          count={totalTracks}
+        />
+        {FILTER_DEFS.map((f) => {
+          const active = activeFilters.has(f.id);
+          return (
+            <FilterChip
+              key={f.id}
+              active={active}
+              onClick={() => toggleFilter(f.id)}
+              icon={f.icon}
+              label={f.label}
+            />
+          );
+        })}
+      </div>
+
+      {/* ─────── Discreet action bar ─────── */}
+      <div className="flex items-center gap-1.5 rounded-xl border border-border bg-surface/60 p-1">
+        <ActionBarButton
+          onClick={() => setSortSheetOpen(true)}
+          icon={ArrowUpDown}
+          label="Trier"
+          value={activeSortLabel}
+          direction={
+            sortField !== "manual" && sortField !== "import"
+              ? sortDir
+              : undefined
+          }
+        />
+        <ActionBarSep />
+        <ActionBarButton
+          onClick={() => {
+            if (selectionMode) clearSelection();
+            else { setSelectionMode(true); setReorderMode(false); }
+          }}
+          icon={selectionMode ? CheckSquare : ListChecks}
+          label="Sélection"
+          active={selectionMode}
+        />
+        <ActionBarSep />
+        <ActionBarButton
+          onClick={() => {
+            setReorderMode((v) => !v);
+            if (!reorderMode) setSelectionMode(false);
+          }}
+          icon={Move}
+          label="Réorg."
+          active={reorderMode}
+          disabled={sortField !== "manual" || isFiltering}
+        />
+        <ActionBarSep />
+        <ActionBarButton
+          onClick={closeProject}
+          icon={FolderInput}
+          label="Importer"
+        />
+        <DensitySwitcher density={density} setDensity={setDensity} />
+      </div>
+
+      {/* ─────── Track list ─────── */}
       <div className="space-y-2">
         <div className="flex items-baseline justify-between px-1">
           <h2 className="font-display text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Bibliothèque
+            {isFiltering ? "Résultats" : "Morceaux"}
           </h2>
           <span className="text-[11px] text-muted-foreground">
-            {filtered.length} / {project.tracks.length}
+            {filtered.length} / {totalTracks}
             {isIndexing && " · indexation…"}
           </span>
         </div>
 
         {filtered.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-surface/50 p-8 text-center text-sm text-muted-foreground">
-            {query || favOnly ? "Aucun résultat." : "Aucun fichier audio."}
-          </div>
+          <EmptyState
+            isFiltering={isFiltering}
+            onClear={() => { clearFilters(); setQuery(""); }}
+            onImport={closeProject}
+          />
         ) : (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={filtered.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              <ul className="overflow-hidden rounded-xl border border-border bg-surface">
-                {filtered.map((t) => (
-                  <Row
+            <SortableContext
+              items={filtered.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="space-y-2">
+                {filtered.map((t, i) => (
+                  <TrackCard
                     key={t.id}
                     track={t}
-                    cols={cols}
+                    density={density}
                     selected={selection.has(t.id)}
-                    selectionMode={isSelectionMode}
-                    onToggle={(add) => toggleSelect(t.id, add)}
-                    onFav={() => toggleFavorite(t.id)}
+                    selectionMode={selectionMode}
+                    isDuplicate={duplicateIds.has(t.id)}
                     canDrag={canReorder}
+                    onToggleSelect={() => toggleSelect(t.id)}
+                    style={{
+                      animationDelay: `${Math.min(i * 12, 240)}ms`,
+                    }}
                   />
                 ))}
               </ul>
@@ -267,29 +418,53 @@ export function LibraryTab() {
         )}
       </div>
 
-      {isSelectionMode && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-surface/95 px-4 py-3 backdrop-blur-md">
-          <div className="mx-auto flex max-w-md items-center gap-2">
-            <button onClick={clearSelection} className="grid h-10 w-10 place-items-center rounded-lg text-muted-foreground hover:bg-surface-elevated" aria-label="Annuler">
+      {/* ─────── Contextual selection bar ─────── */}
+      {selectionMode && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-40 flex justify-center px-4 sm:bottom-28">
+          <div className="pointer-events-auto flex w-full max-w-md items-center gap-1.5 rounded-2xl border border-border/70 bg-surface/95 p-1.5 shadow-2xl backdrop-blur-md animate-fade-in">
+            <button
+              onClick={clearSelection}
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-surface-elevated"
+              aria-label="Quitter la sélection"
+            >
               <X className="h-4 w-4" />
             </button>
-            <div className="flex-1 text-sm font-medium">{selection.size} sélectionné{selection.size > 1 ? "s" : ""}</div>
-            <button onClick={invertSelection} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground hover:text-foreground">
+            <div className="flex-1 text-sm font-medium tabular-nums">
+              {selection.size}{" "}
+              <span className="text-muted-foreground">
+                sélectionné{selection.size > 1 ? "s" : ""}
+              </span>
+            </div>
+            <button
+              onClick={invertSelection}
+              className="hidden h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-muted-foreground hover:bg-surface-elevated hover:text-foreground sm:inline-flex"
+            >
               Inverser
             </button>
-            <button onClick={selectAllVisible} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground hover:text-foreground">
+            <button
+              onClick={selectAllVisible}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
+            >
               Tout
             </button>
-            <button onClick={deleteSelection} className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-destructive px-3 text-xs font-semibold text-destructive-foreground">
+            <button
+              onClick={deleteSelection}
+              disabled={selection.size === 0}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-destructive px-3 text-xs font-semibold text-destructive-foreground disabled:opacity-40"
+            >
               <Trash2 className="h-3.5 w-3.5" /> Retirer
             </button>
           </div>
         </div>
       )}
 
+      {/* ─────── Sort sheet ─────── */}
       {sortSheetOpen && (
-        <BottomSheet onClose={() => setSortSheetOpen(false)} title="Trier la bibliothèque">
-          <ul className="space-y-1">
+        <BottomSheet
+          onClose={() => setSortSheetOpen(false)}
+          title="Trier la bibliothèque"
+        >
+          <ul className="space-y-1.5">
             {SORT_OPTIONS.map((opt) => {
               const active = opt.id === sortField;
               const fixed = opt.id === "manual" || opt.id === "import";
@@ -297,18 +472,33 @@ export function LibraryTab() {
                 <li key={opt.id}>
                   <button
                     onClick={() => {
-                      if (fixed) { setSortField(opt.id); setSortDir("asc"); setSortSheetOpen(false); return; }
-                      if (active) setSortDir(sortDir === "asc" ? "desc" : "asc");
-                      else { setSortField(opt.id); setSortDir("asc"); }
+                      if (fixed) {
+                        setSortField(opt.id);
+                        setSortDir("asc");
+                        setSortSheetOpen(false);
+                        return;
+                      }
+                      if (active) {
+                        setSortDir(sortDir === "asc" ? "desc" : "asc");
+                      } else {
+                        setSortField(opt.id);
+                        setSortDir("asc");
+                      }
                     }}
-                    className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-sm ${
-                      active ? "border-primary/40 bg-accent/40 text-foreground" : "border-border bg-background hover:border-border-strong"
+                    className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm transition-colors ${
+                      active
+                        ? "border-primary/40 bg-accent/40 text-foreground"
+                        : "border-border bg-background hover:border-border-strong"
                     }`}
                   >
                     <span className="font-medium">{opt.label}</span>
                     {active && !fixed && (
                       <span className="inline-flex items-center gap-1 text-[11px] text-primary">
-                        {sortDir === "asc" ? <><ArrowUp className="h-3.5 w-3.5" />Asc</> : <><ArrowDown className="h-3.5 w-3.5" />Desc</>}
+                        {sortDir === "asc" ? (
+                          <><ArrowUp className="h-3.5 w-3.5" />Asc</>
+                        ) : (
+                          <><ArrowDown className="h-3.5 w-3.5" />Desc</>
+                        )}
                       </span>
                     )}
                     {active && fixed && <Check className="h-4 w-4 text-primary" />}
@@ -319,125 +509,446 @@ export function LibraryTab() {
           </ul>
         </BottomSheet>
       )}
-
-      {colsOpen && (
-        <BottomSheet onClose={() => setColsOpen(false)} title="Colonnes affichées">
-          <ul className="grid grid-cols-2 gap-2">
-            {(Object.keys(cols) as Array<keyof ColumnPrefs>).map((k) => (
-              <li key={k}>
-                <label className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 text-sm ${cols[k] ? "border-primary/40 bg-accent/30" : "border-border"}`}>
-                  <span className="capitalize">{k}</span>
-                  <input type="checkbox" checked={cols[k]} onChange={(e) => setCols({ ...cols, [k]: e.target.checked })} className="accent-primary" />
-                </label>
-              </li>
-            ))}
-          </ul>
-        </BottomSheet>
-      )}
     </div>
   );
 }
 
-function Row({
-  track, cols, selected, selectionMode, onToggle, onFav, canDrag,
+// ─────────────────────────────────────────────────────────────
+// Summary stat pill
+// ─────────────────────────────────────────────────────────────
+
+function SummaryStat({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof AlertCircle;
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-border/60 bg-surface-elevated/60 p-2.5">
+      <div className="mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <Icon className="h-3 w-3" />
+        <span className="truncate">{label}</span>
+      </div>
+      <div className="font-display text-base font-semibold tabular-nums text-foreground">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Filter chip
+// ─────────────────────────────────────────────────────────────
+
+function FilterChip({
+  active, onClick, icon: Icon, label, count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: typeof AlertCircle;
+  label: string;
+  count?: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex h-9 shrink-0 snap-start items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition-colors ${
+        active
+          ? "border-primary/50 bg-primary/15 text-primary shadow-[0_0_0_1px_var(--color-primary)/10]"
+          : "border-border bg-surface text-muted-foreground hover:border-border-strong hover:text-foreground"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      <span>{label}</span>
+      {count !== undefined && (
+        <span
+          className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+            active
+              ? "bg-primary/20 text-primary"
+              : "bg-surface-elevated text-muted-foreground/80"
+          }`}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Action bar
+// ─────────────────────────────────────────────────────────────
+
+function ActionBarButton({
+  onClick, icon: Icon, label, value, direction, active, disabled,
+}: {
+  onClick: () => void;
+  icon: typeof AlertCircle;
+  label: string;
+  value?: string;
+  direction?: "asc" | "desc";
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`group inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        active
+          ? "bg-primary/15 text-primary"
+          : "text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">
+        {value ? (
+          <>
+            <span className="hidden text-muted-foreground sm:inline">{label} · </span>
+            <span className="text-foreground">{value}</span>
+          </>
+        ) : (
+          label
+        )}
+      </span>
+      {direction === "asc" && <ArrowUp className="h-3 w-3 text-primary" />}
+      {direction === "desc" && <ArrowDown className="h-3 w-3 text-primary" />}
+    </button>
+  );
+}
+function ActionBarSep() {
+  return <span className="h-5 w-px shrink-0 bg-border" aria-hidden />;
+}
+
+function DensitySwitcher({
+  density, setDensity,
+}: {
+  density: Density;
+  setDensity: (d: Density) => void;
+}) {
+  const items: Array<{ id: Density; icon: typeof AlertCircle; label: string }> = [
+    { id: "compact", icon: Rows4, label: "Compact" },
+    { id: "comfort", icon: Rows3, label: "Confort" },
+    { id: "detailed", icon: LayoutGrid, label: "Détaillé" },
+  ];
+  return (
+    <div className="ml-1 hidden items-center gap-0.5 rounded-lg border border-border/70 bg-surface p-0.5 sm:flex">
+      {items.map(({ id, icon: Icon, label }) => (
+        <button
+          key={id}
+          onClick={() => setDensity(id)}
+          aria-label={label}
+          className={`grid h-8 w-8 place-items-center rounded-md transition-colors ${
+            density === id
+              ? "bg-primary/15 text-primary"
+              : "text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
+          }`}
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Empty state
+// ─────────────────────────────────────────────────────────────
+
+function EmptyState({
+  isFiltering, onClear, onImport,
+}: {
+  isFiltering: boolean;
+  onClear: () => void;
+  onImport: () => void;
+}) {
+  if (isFiltering) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-8 text-center animate-fade-in">
+        <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-surface-elevated text-muted-foreground">
+          <Search className="h-5 w-5" />
+        </div>
+        <h3 className="font-display text-sm font-semibold text-foreground">
+          Aucun résultat
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Essaie d'autres mots-clés ou désactive un filtre pour voir plus de morceaux.
+        </p>
+        <button
+          onClick={onClear}
+          className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-medium text-foreground hover:border-border-strong"
+        >
+          Réinitialiser
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-8 text-center animate-fade-in">
+      <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-primary/10 text-primary">
+        <Music2 className="h-7 w-7" />
+      </div>
+      <h3 className="font-display text-base font-semibold text-foreground">
+        Aucun morceau importé
+      </h3>
+      <p className="mx-auto mt-1.5 max-w-xs text-xs leading-relaxed text-muted-foreground">
+        Importe un dossier contenant tes morceaux audio pour commencer à
+        analyser, ranger et mixer.
+      </p>
+      <button
+        onClick={onImport}
+        className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-gold hover:opacity-90"
+      >
+        <FolderInput className="h-4 w-4" />
+        Importer une bibliothèque
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Track card
+// ─────────────────────────────────────────────────────────────
+
+function TrackCard({
+  track, density, selected, selectionMode, isDuplicate, canDrag,
+  onToggleSelect, style,
 }: {
   track: Track;
-  cols: ColumnPrefs;
+  density: Density;
   selected: boolean;
   selectionMode: boolean;
-  onToggle: (additive: boolean) => void;
-  onFav: () => void;
+  isDuplicate: boolean;
   canDrag: boolean;
+  onToggleSelect: () => void;
+  style?: React.CSSProperties;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: track.id, disabled: !canDrag });
-  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  const missingBpm = track.bpm == null;
+  const missingKey = !track.musicalKey;
+  const hasMissing = missingBpm || missingKey;
+
+  const pad = density === "compact" ? "p-2.5" : density === "detailed" ? "p-4" : "p-3";
+  const gap = density === "compact" ? "gap-2" : "gap-3";
+  const titleSize = density === "detailed" ? "text-[15px]" : "text-sm";
+
+  const dndStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...style,
+  };
 
   return (
     <li
       ref={setNodeRef}
-      style={style}
-      className={`flex items-center gap-2 border-b border-border/60 px-2 py-2.5 last:border-b-0 ${
-        selected ? "bg-accent/30" : "hover:bg-surface-elevated"
-      } ${isDragging ? "z-10 shadow-gold" : ""}`}
+      style={dndStyle}
+      className={`animate-fade-in rounded-2xl border transition-[background-color,border-color,box-shadow] ${pad} ${gap} ${
+        selected
+          ? "border-primary/50 bg-primary/10 shadow-[0_0_0_1px_var(--color-primary)/30]"
+          : isDragging
+          ? "z-10 border-primary/40 bg-surface-elevated shadow-2xl"
+          : "border-border bg-surface hover:border-border-strong hover:bg-surface-elevated"
+      } flex items-center`}
+      onClick={selectionMode ? onToggleSelect : undefined}
+      role={selectionMode ? "button" : undefined}
     >
-      {canDrag && (
-        <button {...attributes} {...listeners} aria-label="Réordonner" className="grid h-8 w-6 shrink-0 cursor-grab touch-none place-items-center text-muted-foreground/60 hover:text-foreground active:cursor-grabbing">
+      {/* Left: drag handle / play / checkbox */}
+      {canDrag ? (
+        <button
+          {...attributes}
+          {...listeners}
+          aria-label="Réordonner"
+          className="grid h-10 w-8 shrink-0 cursor-grab touch-none place-items-center text-muted-foreground/70 hover:text-foreground active:cursor-grabbing"
+          onClick={(e) => e.stopPropagation()}
+        >
           <GripVertical className="h-4 w-4" />
         </button>
-      )}
-      {selectionMode ? (
+      ) : selectionMode ? (
         <button
-          onClick={(e) => onToggle(e.shiftKey || e.metaKey || e.ctrlKey || selectionMode)}
+          onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
           aria-label={selected ? "Désélectionner" : "Sélectionner"}
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-surface-elevated"
+          className="grid h-10 w-10 shrink-0 place-items-center"
         >
           {selected ? (
-            <div className="grid h-4 w-4 place-items-center rounded-sm bg-primary text-primary-foreground">
+            <div className="grid h-5 w-5 place-items-center rounded-md bg-primary text-primary-foreground">
               <Check className="h-3 w-3" strokeWidth={3} />
             </div>
           ) : (
-            <div className="h-4 w-4 rounded-sm border border-border-strong" />
+            <div className="h-5 w-5 rounded-md border-2 border-border-strong" />
           )}
         </button>
       ) : (
-        <PlayPauseButton trackId={track.id} size="md" />
+        <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+          <PlayPauseButton trackId={track.id} size="md" />
+        </div>
       )}
 
-
+      {/* Middle: name + meta */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <p className="truncate text-sm font-medium leading-tight">{track.name}</p>
-          {track.favorite && <Star className="h-3 w-3 shrink-0 fill-primary text-primary" />}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h3
+            className={`min-w-0 flex-1 truncate font-medium leading-tight text-foreground ${titleSize}`}
+          >
+            {track.name}
+          </h3>
+          {hasMissing && (
+            <span
+              title={
+                missingBpm && missingKey
+                  ? "BPM et tonalité manquants"
+                  : missingBpm
+                  ? "BPM manquant"
+                  : "Tonalité manquante"
+              }
+              className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-amber-500/15 text-amber-500"
+              aria-label="Métadonnées manquantes"
+            >
+              <span className="block h-1.5 w-1.5 rounded-full bg-amber-500" />
+            </span>
+          )}
+          {isDuplicate && (
+            <span
+              title="Présent dans un groupe de doublons"
+              className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-orange-500/15 text-orange-500"
+              aria-label="Doublon"
+            >
+              <Copy className="h-2.5 w-2.5" />
+            </span>
+          )}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-          {cols.duration && <span className="tabular-nums">{formatDuration(track.durationSec)}</span>}
-          {cols.bpm && <Chip label="BPM" value={track.bpm != null ? Math.round(track.bpm).toString() : null} />}
-          {cols.key && <Chip label="Key" value={track.musicalKey} />}
-          {cols.camelot && <Chip label="Cam" value={track.camelot} />}
-          {cols.size && <span className="tabular-nums">{formatSize(track.size)}</span>}
-          {cols.date && <span className="tabular-nums">{formatDate(track.addedAt)}</span>}
-          {cols.type && <span className="opacity-70">{track.mimeType.split("/")[1] ?? track.mimeType}</span>}
-          {cols.path && <span className="truncate opacity-60">{track.path}</span>}
-        </div>
-      </div>
 
-      <button
-        onClick={onFav}
-        aria-label={track.favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:text-primary"
-      >
-        <Star className={`h-4 w-4 ${track.favorite ? "fill-primary text-primary" : ""}`} />
-      </button>
-      {cols.extension && (
-        <span className="shrink-0 font-mono text-[10px] uppercase text-muted-foreground/70">
-          {track.extension}
-        </span>
-      )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <MetaText>
+            <Clock className="h-3 w-3" />
+            <span className="tabular-nums">{formatDuration(track.durationSec)}</span>
+          </MetaText>
+
+          <Badge variant="bpm" filled={!missingBpm}>
+            {missingBpm ? "— BPM" : `${Math.round(track.bpm!)} BPM`}
+          </Badge>
+          <Badge variant="key" filled={!missingKey}>
+            {track.musicalKey ?? "—"}
+          </Badge>
+          {track.camelot && (
+            <Badge variant="camelot" filled>
+              {track.camelot}
+            </Badge>
+          )}
+
+          {density !== "compact" && (
+            <>
+              <MetaText muted>
+                <span className="font-mono uppercase">{track.extension}</span>
+              </MetaText>
+              <MetaText muted>
+                <HardDrive className="h-3 w-3" />
+                <span className="tabular-nums">{formatSize(track.size)}</span>
+              </MetaText>
+            </>
+          )}
+        </div>
+
+        {density === "detailed" && (
+          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10.5px] text-muted-foreground/80">
+            <span className="truncate" title={track.originalName}>
+              Nom d'origine : {track.originalName}
+            </span>
+            <span className="truncate">
+              Statut : {STATUS_LABEL[track.analysisStatus]}
+            </span>
+            {track.path && (
+              <span className="col-span-2 truncate opacity-70" title={track.path}>
+                {track.path}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     </li>
   );
 }
 
-function Chip({ label, value }: { label: string; value: string | null }) {
-  const filled = value !== null && value !== "";
+const STATUS_LABEL: Record<Track["analysisStatus"], string> = {
+  pending: "En attente",
+  analyzing: "En cours",
+  done: "Analysé",
+  error: "Erreur",
+};
+
+function MetaText({
+  children, muted,
+}: {
+  children: React.ReactNode;
+  muted?: boolean;
+}) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
-      filled ? "bg-primary/15 text-primary" : "bg-surface-elevated text-muted-foreground/60"
-    }`}>
-      <span className="uppercase tracking-wider opacity-70">{label}</span>
-      <span className="tabular-nums">{filled ? value : "—"}</span>
+    <span
+      className={`inline-flex items-center gap-1 ${
+        muted ? "text-muted-foreground/70" : "text-muted-foreground"
+      }`}
+    >
+      {children}
     </span>
   );
 }
 
-function BottomSheet({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
+function Badge({
+  children, variant, filled,
+}: {
+  children: React.ReactNode;
+  variant: "bpm" | "key" | "camelot";
+  filled: boolean;
+}) {
+  const palette = filled
+    ? variant === "bpm"
+      ? "bg-primary/15 text-primary border border-primary/20"
+      : variant === "key"
+      ? "bg-sky-500/15 text-sky-500 border border-sky-500/25"
+      : "bg-emerald-500/15 text-emerald-500 border border-emerald-500/25"
+    : "bg-surface-elevated text-muted-foreground/60 border border-border/60";
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-background/70 backdrop-blur-sm" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="animate-fade-up rounded-t-2xl border-t border-border bg-surface px-4 pb-8 pt-4 shadow-2xl max-h-[80vh] overflow-y-auto">
+    <span
+      className={`inline-flex h-5 items-center rounded-md px-1.5 text-[10.5px] font-semibold tabular-nums ${palette}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Bottom sheet
+// ─────────────────────────────────────────────────────────────
+
+function BottomSheet({
+  children, onClose, title,
+}: {
+  children: React.ReactNode;
+  onClose: () => void;
+  title: string;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-background/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="animate-fade-up max-h-[80vh] overflow-y-auto rounded-t-3xl border-t border-border bg-surface px-4 pb-8 pt-4 shadow-2xl"
+      >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-display text-sm font-semibold">{title}</h3>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-surface-elevated" aria-label="Fermer">
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-surface-elevated"
+            aria-label="Fermer"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -446,3 +957,16 @@ function BottomSheet({ children, onClose, title }: { children: React.ReactNode; 
     </div>
   );
 }
+
+// Legacy re-export kept for compatibility with older code paths.
+export type ColumnPrefs = {
+  duration: boolean;
+  bpm: boolean;
+  key: boolean;
+  camelot: boolean;
+  type: boolean;
+  size: boolean;
+  extension: boolean;
+  date: boolean;
+  path: boolean;
+};

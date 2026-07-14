@@ -49,7 +49,7 @@ const CONF_META: Record<
 type FilterKind = "all" | DupConfidence | "ignored";
 
 export function DuplicatesTab() {
-  const { project, mergeAndRemoveDuplicates, toggleFavorite } = useWorkspace();
+  const { project, mergeAndRemoveDuplicates } = useWorkspace();
   const { groups, state, ignoreGroup, restoreIgnored, setKeeper } = useDuplicates();
   const [filter, setFilter] = useState<FilterKind>("all");
   const [extFilter, setExtFilter] = useState<string>("all");
@@ -319,15 +319,6 @@ export function DuplicatesTab() {
                               Garder
                             </button>
                           )}
-                          <button
-                            onClick={() => toggleFavorite(id)}
-                            className="grid h-6 w-6 place-items-center rounded-md hover:bg-accent/20"
-                            title="Favori"
-                          >
-                            <Star
-                              className={`h-3.5 w-3.5 ${t.favorite ? "fill-primary text-primary" : "text-muted-foreground"}`}
-                            />
-                          </button>
                         </div>
                       </li>
                     );
@@ -336,7 +327,7 @@ export function DuplicatesTab() {
 
                 <div className="flex items-center justify-between gap-2 border-t border-border/60 bg-surface/60 px-3 py-2">
                   <p className="text-[10px] text-muted-foreground">
-                    La fusion transfère BPM · tonalité · favori · historique au
+                    La fusion transfère BPM · tonalité · historique au
                     morceau conservé avant suppression.
                   </p>
                   <button
