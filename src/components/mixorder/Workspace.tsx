@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, FolderOpen, Loader2, Library, Bot, Waves, Copy, Pencil } from "lucide-react";
+import { ChevronLeft, FolderOpen, Loader2, Library, Bot, Waves, Copy, Pencil, ListMusic } from "lucide-react";
 import { Logo } from "./Logo";
 import { formatDuration, useWorkspace } from "@/lib/workspace-context";
 import { LibraryTab } from "./tabs/LibraryTab";
@@ -7,6 +7,7 @@ import { RobotTab } from "./tabs/RobotTab";
 import { AnalysisTab } from "./tabs/AnalysisTab";
 import { DuplicatesTab } from "./tabs/DuplicatesTab";
 import { RenameTab } from "./tabs/RenameTab";
+import { SetBuilderTab } from "./tabs/SetBuilderTab";
 import { MiniPlayer } from "./player/MiniPlayer";
 import { usePlayer } from "@/lib/player/player-context";
 
