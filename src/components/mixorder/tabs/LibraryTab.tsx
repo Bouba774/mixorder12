@@ -249,7 +249,7 @@ export function LibraryTab() {
           <EmptyState
             isFiltering={isFiltering}
             onClear={() => setQuery("")}
-            onImport={() => useWorkspace}
+            onImport={() => { /* handled at shell level */ }}
           />
         ) : (
           <DndContext
@@ -574,12 +574,7 @@ function TrackCard({
   );
 }
 
-const STATUS_LABEL: Record<Track["analysisStatus"], string> = {
-  pending: "En attente",
-  analyzing: "En cours",
-  done: "Analysé",
-  error: "Erreur",
-};
+// STATUS_LABEL removed with the detailed density view.
 
 function MetaText({
   children, muted,
