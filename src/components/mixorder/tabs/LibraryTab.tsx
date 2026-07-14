@@ -14,47 +14,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { formatDuration, useWorkspace, type Track, type TrackId } from "@/lib/workspace-context";
+import { useLibraryView } from "@/lib/library/view-context";
+import { SORT_OPTIONS, type SortField, type SortDir } from "@/lib/library/sort";
 
-type SortField =
-  | "manual" | "import" | "name" | "duration" | "bpm" | "key" | "camelot"
-  | "added" | "size";
-type SortDir = "asc" | "desc";
-
-const SORT_OPTIONS: Array<{ id: SortField; label: string }> = [
-  { id: "manual", label: "Ordre personnalisé" },
-  { id: "import", label: "Ordre d'importation" },
-  { id: "name", label: "Nom (A→Z)" },
-  { id: "bpm", label: "BPM" },
-  { id: "key", label: "Tonalité" },
-  { id: "camelot", label: "Camelot" },
-  { id: "duration", label: "Durée" },
-  { id: "added", label: "Date d'ajout" },
-  { id: "size", label: "Taille" },
-];
-
-const KEY_ORDER: Record<string, number> = (() => {
-  const order = ["C","G","D","A","E","B","F#","C#","F","Bb","Eb","Ab","Db","Gb","Cb"];
-  const map: Record<string, number> = {};
-  order.forEach((k, i) => { map[k] = i * 2; map[`${k}m`] = i * 2 + 1; });
-  return map;
-})();
-function cmpKey(a: string | null, b: string | null) {
-  const av = a ? KEY_ORDER[a] ?? 999 : 1000;
-  const bv = b ? KEY_ORDER[b] ?? 999 : 1000;
-  return av - bv;
-}
-function cmpNum(a: number | null, b: number | null) {
-  if (a === null && b === null) return 0;
-  if (a === null) return 1;
-  if (b === null) return -1;
-  return a - b;
-}
-function cmpStr(a: string | null, b: string | null) {
-  if (!a && !b) return 0;
-  if (!a) return 1;
-  if (!b) return -1;
-  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
-}
 
 export interface ColumnPrefs {
   duration: boolean;
@@ -87,14 +49,18 @@ function formatDate(ts: number): string {
 export function LibraryTab() {
   const { project, reorderTracks, removeTracks, toggleFavorite, isIndexing } =
     useWorkspace();
-  const [query, setQuery] = useState("");
-  const [sortField, setSortField] = useState<SortField>("manual");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const {
+    query, setQuery,
+    sortField, setSortField,
+    sortDir, setSortDir,
+    favOnly, setFavOnly,
+    applyView,
+  } = useLibraryView();
   const [selection, setSelection] = useState<Set<TrackId>>(new Set());
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [colsOpen, setColsOpen] = useState(false);
   const [cols, setCols] = useState<ColumnPrefs>(DEFAULT_COLS);
-  const [favOnly, setFavOnly] = useState(false);
+
 
   const clearSelection = useCallback(() => setSelection(new Set()), []);
   const toggleSelect = useCallback((id: TrackId, additive: boolean) => {
@@ -108,41 +74,8 @@ export function LibraryTab() {
   const isSelectionMode = selection.size > 0;
 
   const tracks = project?.tracks ?? [];
+  const filtered = useMemo<Track[]>(() => applyView(tracks), [tracks, applyView]);
 
-  const sorted = useMemo<Track[]>(() => {
-    const arr = tracks.slice();
-    if (sortField === "manual" || sortField === "import") return arr;
-    const dir = sortDir === "asc" ? 1 : -1;
-    arr.sort((a, b) => {
-      let c = 0;
-      switch (sortField) {
-        case "name": c = cmpStr(a.name, b.name); break;
-        case "duration": c = cmpNum(a.durationSec, b.durationSec); break;
-        case "bpm": c = cmpNum(a.bpm, b.bpm); break;
-        case "key": c = cmpKey(a.musicalKey, b.musicalKey); break;
-        case "camelot": c = cmpStr(a.camelot, b.camelot); break;
-        case "added": c = a.addedAt - b.addedAt; break;
-        case "size": c = a.size - b.size; break;
-      }
-      return c * dir;
-    });
-    return arr;
-  }, [tracks, sortField, sortDir]);
-
-  const filtered = useMemo<Track[]>(() => {
-    let arr = sorted;
-    if (favOnly) arr = arr.filter((t) => t.favorite);
-    const q = query.trim().toLowerCase();
-    if (!q) return arr;
-    return arr.filter((t) =>
-      t.name.toLowerCase().includes(q) ||
-      t.originalName.toLowerCase().includes(q) ||
-      (t.musicalKey?.toLowerCase().includes(q) ?? false) ||
-      (t.camelot?.toLowerCase().includes(q) ?? false) ||
-      (t.bpm != null && String(Math.round(t.bpm)).includes(q)) ||
-      t.extension.includes(q),
-    );
-  }, [sorted, query, favOnly]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -222,7 +155,7 @@ export function LibraryTab() {
             </span>
           </button>
           <button
-            onClick={() => setFavOnly((v) => !v)}
+            onClick={() => setFavOnly(!favOnly)}
             aria-pressed={favOnly}
             className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium ${
               favOnly ? "border-primary/40 bg-accent/40 text-primary" : "border-border bg-surface text-muted-foreground hover:text-foreground"

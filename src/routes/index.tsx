@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { WorkspaceProvider, useWorkspace } from "@/lib/workspace-context";
+import { LibraryViewProvider } from "@/lib/library/view-context";
 import { WelcomeScreen } from "@/components/mixorder/WelcomeScreen";
 import { Workspace } from "@/components/mixorder/Workspace";
 
@@ -15,7 +16,10 @@ function AppShell() {
 function Index() {
   return (
     <WorkspaceProvider>
-      <AppShell />
+      <LibraryViewProvider>
+        <AppShell />
+      </LibraryViewProvider>
     </WorkspaceProvider>
   );
 }
+
