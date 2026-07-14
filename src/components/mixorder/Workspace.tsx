@@ -96,12 +96,14 @@ export function Workspace() {
       )}
 
       <main className={`flex-1 px-4 py-5 ${playingId ? "pb-40" : "pb-24"}`}>
-        {tab === "library" && <LibraryTab />}
-        {tab === "robot" && <RobotTab />}
-        {tab === "analysis" && <AnalysisTab />}
-        {tab === "duplicates" && <DuplicatesTab />}
-        {tab === "setbuilder" && <SetBuilderTab />}
-        {tab === "rename" && <RenameTab />}
+        <TabErrorBoundary resetKey={tab}>
+          {tab === "library" && <LibraryTab />}
+          {tab === "robot" && <RobotTab />}
+          {tab === "analysis" && <AnalysisTab />}
+          {tab === "duplicates" && <DuplicatesTab />}
+          {tab === "setbuilder" && <SetBuilderTab />}
+          {tab === "rename" && <RenameTab />}
+        </TabErrorBoundary>
       </main>
 
       <MiniPlayer />
