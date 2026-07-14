@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useWorkspace, formatDuration, type Track } from "@/lib/workspace-context";
 import { useDuplicates, type DupConfidence, type DupGroup } from "@/hooks/useDuplicates";
+import { PageHeader } from "../PageHeader";
 
 /**
  * Duplicates tab — full-featured local duplicate detection UI.
