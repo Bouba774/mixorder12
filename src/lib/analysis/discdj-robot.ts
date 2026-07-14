@@ -401,6 +401,7 @@ export function useDiscDJRobot() {
       backgroundRunRef.current = false;
       setState((s) => ({ ...s, phase: "done", etaMsRemaining: 0 }));
       log("success", "Analyse en arrière-plan terminée.");
+      keyAnalysisEngine.setSlowMode(false);
     }));
     subs.push(bridge.addBackgroundListener("discdjVisibilityPaused", (payload) => {
       const p = payload as { visible?: boolean };
