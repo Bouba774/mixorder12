@@ -65,7 +65,7 @@ export function Workspace() {
               </p>
             </div>
           </div>
-          <div className="w-9" />
+          <ThemeToggle />
         </div>
 
         {/* Tabs bar */}
