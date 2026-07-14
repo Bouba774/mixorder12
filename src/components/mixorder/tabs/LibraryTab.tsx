@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
   CheckSquare, Square, X, Trash2, Check, Star, Settings2,
+  Library as LibraryIcon, FolderInput,
 } from "lucide-react";
 import {
   DndContext, PointerSensor, TouchSensor, KeyboardSensor,
