@@ -32,6 +32,7 @@ import {
   type ReactNode,
 } from "react";
 import { useLibraryView } from "@/lib/library/view-context";
+import { useSetBuilder } from "@/lib/setbuilder/context";
 import { useWorkspace, type Track } from "@/lib/workspace-context";
 import { projectFingerprint } from "@/lib/analysis/persistence";
 
