@@ -18,6 +18,7 @@ import { formatDuration, useWorkspace, type Track, type TrackId } from "@/lib/wo
 import { useLibraryView } from "@/lib/library/view-context";
 import { SORT_OPTIONS, type SortField, type SortDir } from "@/lib/library/sort";
 import { PlayPauseButton } from "../player/PlayPauseButton";
+import { PageHeader, HeaderStat } from "../PageHeader";
 
 
 
