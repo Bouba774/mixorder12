@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import logo from "../assets/mixorder-logo.asset.json";
 import { ThemeProvider } from "../lib/theme/theme-provider";
+import { configureSystemUI } from "../lib/native/system-ui";
 
 function NotFoundComponent() {
   return (
@@ -139,6 +140,10 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    void configureSystemUI();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
