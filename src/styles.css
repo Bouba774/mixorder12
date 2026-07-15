@@ -58,51 +58,53 @@
 .dark {
   --radius: 0.875rem;
 
-  --background: #0B1220;
-  --foreground: #F1F5FF;
+  /* Studio Deep — DJ-grade dark theme (violet intelligence, mint audio) */
+  --background: #0A0D14;
+  --foreground: #F3F5F7;
 
-  --surface: #111A2E;
-  --surface-elevated: #17223B;
+  --surface: #121826;
+  --surface-elevated: #1A2235;
 
-  --card: #111A2E;
-  --card-foreground: #F1F5FF;
+  --card: #121826;
+  --card-foreground: #F3F5F7;
 
-  --popover: #111A2E;
-  --popover-foreground: #F1F5FF;
+  --popover: #1A2235;
+  --popover-foreground: #F3F5F7;
 
-  --primary: #2563EB;
+  --primary: #8B5CF6;
   --primary-foreground: #FFFFFF;
-  --primary-glow: #93C5FD;
+  --primary-glow: #A78BFA;
 
-  --bronze: #1E3A8A;
+  /* Kept legacy token name; now the mint audio accent used sparingly */
+  --bronze: #00E5A8;
 
-  --secondary: #131C2E;
-  --secondary-foreground: #E8EEFB;
+  --secondary: #1A2235;
+  --secondary-foreground: #F3F5F7;
 
-  --muted: #131C2E;
-  --muted-foreground: #9AB0D4;
+  --muted: #151B2A;
+  --muted-foreground: #97A0B3;
 
-  --accent: #1E3A8A;
-  --accent-foreground: #FFFFFF;
+  --accent: #00E5A8;
+  --accent-foreground: #052A22;
 
-  --action: #2563EB;
+  --action: #8B5CF6;
   --action-foreground: #FFFFFF;
 
-  --success: #22C55E;
-  --success-foreground: #06180D;
+  --success: #00E5A8;
+  --success-foreground: #052A22;
 
-  --destructive: #EF4444;
-  --destructive-foreground: #FFF5F5;
+  --destructive: #FF6B6B;
+  --destructive-foreground: #26090A;
 
-  --border: color-mix(in oklab, #93C5FD 14%, transparent);
-  --border-strong: color-mix(in oklab, #93C5FD 28%, transparent);
-  --input: color-mix(in oklab, #93C5FD 14%, transparent);
-  --ring: color-mix(in oklab, #2563EB 65%, transparent);
+  --border: color-mix(in oklab, #97A0B3 16%, transparent);
+  --border-strong: color-mix(in oklab, #97A0B3 30%, transparent);
+  --input: color-mix(in oklab, #97A0B3 16%, transparent);
+  --ring: color-mix(in oklab, #8B5CF6 65%, transparent);
 
-  --gradient-primary: linear-gradient(135deg, #2563EB, #93C5FD);
-  --gradient-bronze: linear-gradient(135deg, #1E3A8A, #2563EB);
-  --gradient-surface: linear-gradient(180deg, #131C2E, #0B1220);
-  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #2563EB 22%, transparent), transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 60%, #00E5A8 130%);
+  --gradient-bronze: linear-gradient(135deg, #00E5A8, #22D3EE);
+  --gradient-surface: linear-gradient(180deg, #1A2235 0%, #0A0D14 100%);
+  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #8B5CF6 26%, transparent), transparent 60%);
 
   color-scheme: dark;
 }
@@ -113,51 +115,51 @@
 .light {
   --radius: 0.875rem;
 
-  --background: #EFF6FF;
-  --foreground: #0B1220;
+  --background: #F5F6FA;
+  --foreground: #0A0D14;
 
   --surface: #FFFFFF;
-  --surface-elevated: #F5F9FF;
+  --surface-elevated: #F0F1F7;
 
   --card: #FFFFFF;
-  --card-foreground: #0B1220;
+  --card-foreground: #0A0D14;
 
   --popover: #FFFFFF;
-  --popover-foreground: #0B1220;
+  --popover-foreground: #0A0D14;
 
-  --primary: #2563EB;
+  --primary: #7C3AED;
   --primary-foreground: #FFFFFF;
-  --primary-glow: #93C5FD;
+  --primary-glow: #A78BFA;
 
-  --bronze: #1E3A8A;
+  --bronze: #00B587;
 
-  --secondary: #DBE7FE;
-  --secondary-foreground: #1E3A8A;
+  --secondary: #EEEAFB;
+  --secondary-foreground: #4C1D95;
 
-  --muted: #DBE7FE;
-  --muted-foreground: #475877;
+  --muted: #EEF0F6;
+  --muted-foreground: #5A6478;
 
-  --accent: #93C5FD;
-  --accent-foreground: #0B1220;
+  --accent: #00B587;
+  --accent-foreground: #052A22;
 
-  --action: #2563EB;
+  --action: #7C3AED;
   --action-foreground: #FFFFFF;
 
-  --success: #15803D;
+  --success: #00B587;
   --success-foreground: #FFFFFF;
 
-  --destructive: #DC2626;
+  --destructive: #E64545;
   --destructive-foreground: #FFFFFF;
 
-  --border: color-mix(in oklab, #1E3A8A 14%, transparent);
-  --border-strong: color-mix(in oklab, #1E3A8A 28%, transparent);
-  --input: color-mix(in oklab, #1E3A8A 16%, transparent);
-  --ring: color-mix(in oklab, #2563EB 55%, transparent);
+  --border: color-mix(in oklab, #0A0D14 12%, transparent);
+  --border-strong: color-mix(in oklab, #0A0D14 24%, transparent);
+  --input: color-mix(in oklab, #0A0D14 14%, transparent);
+  --ring: color-mix(in oklab, #7C3AED 55%, transparent);
 
-  --gradient-primary: linear-gradient(135deg, #1E3A8A, #2563EB);
-  --gradient-bronze: linear-gradient(135deg, #1E3A8A, #2563EB);
-  --gradient-surface: linear-gradient(180deg, #FFFFFF, #EFF6FF);
-  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #2563EB 14%, transparent), transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #7C3AED 0%, #A78BFA 60%, #00B587 130%);
+  --gradient-bronze: linear-gradient(135deg, #00B587, #22D3EE);
+  --gradient-surface: linear-gradient(180deg, #FFFFFF, #F5F6FA);
+  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #7C3AED 14%, transparent), transparent 60%);
 
   color-scheme: light;
 }

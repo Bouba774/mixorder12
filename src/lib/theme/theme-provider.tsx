@@ -17,7 +17,7 @@ function applyTheme(mode: "light" | "dark") {
   root.classList.toggle("dark", mode === "dark");
   root.classList.toggle("light", mode === "light");
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", mode === "dark" ? "#0B1220" : "#EFF6FF");
+  if (meta) meta.setAttribute("content", mode === "dark" ? "#0A0D14" : "#F5F6FA");
 }
 
 function getSystemPref(): "light" | "dark" {
