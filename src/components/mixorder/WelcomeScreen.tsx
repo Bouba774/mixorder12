@@ -364,7 +364,10 @@ export function WelcomeScreen() {
         </RevealItem>
       </section>
 
-      <footer className="px-6 pb-8 pt-4 text-center text-[10px] uppercase tracking-[0.24em] text-muted-foreground/60">
+      <footer
+        className="px-6 pb-safe pt-4 text-center text-[10px] uppercase tracking-[0.24em] text-muted-foreground/60"
+        style={{ ["--pb-safe-extra" as string]: "32px" }}
+      >
         Crafted for DJs · v0.1
       </footer>
     </div>
