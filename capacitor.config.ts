@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: "app.mixorder.dj",
   appName: "MixOrder",
   webDir: "dist/client",
-  backgroundColor: "#232323",
+  backgroundColor: "#0A0D14",
   android: {
     allowMixedContent: false,
     captureInput: true,
@@ -15,7 +15,7 @@ const config: CapacitorConfig = {
       launchShowDuration: 1200,
       launchAutoHide: true,
       launchFadeOutDuration: 400,
-      backgroundColor: "#232323",
+      backgroundColor: "#0A0D14",
       androidSplashResourceName: "splash",
       androidScaleType: "CENTER_CROP",
       showSpinner: false,
@@ -24,8 +24,8 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: "DARK",
-      backgroundColor: "#232323",
-      overlaysWebView: false,
+      backgroundColor: "#00000000",
+      overlaysWebView: true,
     },
   },
 };
