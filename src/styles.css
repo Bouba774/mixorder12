@@ -178,6 +178,11 @@ body {
 body {
   min-height: 100vh;
   overscroll-behavior-y: none;
+  /* Edge-to-edge on Android: leave room for status bar & gesture bar.
+     Sticky top: 0 elements stick at the padding edge (i.e. below the
+     status bar), while the app background fills the inset area. */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 @layer base {
