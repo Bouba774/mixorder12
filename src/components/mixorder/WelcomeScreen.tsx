@@ -72,7 +72,10 @@ export function WelcomeScreen() {
       />
 
       {/* Top bar — compact brand */}
-      <header className="sticky top-0 z-40 flex items-center justify-between px-5 py-3 backdrop-blur-md bg-background/70 border-b border-border/60">
+      <header
+        className="sticky top-0 z-40 flex items-center justify-between px-5 pt-safe pb-3 backdrop-blur-md bg-background/70 border-b border-border/60"
+        style={{ ["--pt-safe-extra" as string]: "12px" }}
+      >
         <div className="flex items-center gap-2">
           <Logo size={22} />
           <span className="font-display text-[13px] font-semibold tracking-wide">
@@ -361,7 +364,10 @@ export function WelcomeScreen() {
         </RevealItem>
       </section>
 
-      <footer className="px-6 pb-8 pt-4 text-center text-[10px] uppercase tracking-[0.24em] text-muted-foreground/60">
+      <footer
+        className="px-6 pb-safe pt-4 text-center text-[10px] uppercase tracking-[0.24em] text-muted-foreground/60"
+        style={{ ["--pb-safe-extra" as string]: "32px" }}
+      >
         Crafted for DJs · v0.1
       </footer>
     </div>
