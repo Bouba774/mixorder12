@@ -178,11 +178,24 @@ body {
 body {
   min-height: 100vh;
   overscroll-behavior-y: none;
-  /* Edge-to-edge on Android: leave room for status bar & gesture bar.
-     Sticky top: 0 elements stick at the padding edge (i.e. below the
-     status bar), while the app background fills the inset area. */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* =========================================================
+   Edge-to-edge Android: safe-area utilities
+   The WebView draws behind the status bar and gesture bar
+   (overlaysWebView: true). Any top toolbar / sticky header
+   should get pt-safe so its content clears the status bar,
+   while its background paints behind it. Bottom-fixed UI
+   (MiniPlayer, BottomNav) uses pb-safe.
+   ========================================================= */
+@utility pt-safe {
+  padding-top: calc(env(safe-area-inset-top) + var(--pt-safe-extra, 0px));
+}
+@utility pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--pb-safe-extra, 0px));
+}
+@utility top-safe {
+  top: env(safe-area-inset-top);
 }
 
 @layer base {
