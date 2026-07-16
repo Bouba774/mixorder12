@@ -23,7 +23,13 @@ export type SetModeId =
   | "bpm-desc"
   | "key-asc"
   | "key-desc"
-  | "manual";
+  | "manual"
+  | "intelligent"
+  | "open-format"
+  | "peak-time"
+  | "warm-up"
+  | "closing-set"
+  | "random";
 
 export interface SetMode {
   id: SetModeId;
