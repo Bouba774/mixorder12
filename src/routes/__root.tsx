@@ -107,6 +107,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/412ad346-002d-4215-b4c3-ebf0159160a8/id-preview-5a33a3bd--81d2570c-26c3-4ec4-bfe8-b05dd6b96243.lovable.app-1783774080022.png" },
     ],
     links: [
+      { rel: "preconnect", href: "https://api.fontshare.com" },
+      { rel: "preconnect", href: "https://cdn.fontshare.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&f[]=general-sans@400,500,600&display=swap",
+      },
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/__l5e/assets-v1/59a9391b-aced-42e1-84bc-cdedeb81738d/mixorder-logo.png" },
       { rel: "shortcut icon", type: "image/png", href: "/__l5e/assets-v1/59a9391b-aced-42e1-84bc-cdedeb81738d/mixorder-logo.png" },
