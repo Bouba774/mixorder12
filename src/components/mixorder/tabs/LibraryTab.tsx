@@ -96,6 +96,7 @@ export function LibraryTab() {
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [infoTrackId, setInfoTrackId] = useState<TrackId | null>(null);
 
   const tracks = project?.tracks ?? [];
 
