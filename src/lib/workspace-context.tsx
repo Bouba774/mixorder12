@@ -110,6 +110,13 @@ interface WorkspaceContextValue {
   refreshRecentLibraries: () => void;
   /** Remove a library from the recent list (metadata is kept). */
   forgetLibrary: (fingerprint: string) => void;
+  /**
+   * One-tap reopen of a previously imported library. Rebuilds a live
+   * project from the stored manifest — no folder picker, no re-analysis.
+   * Returns false when the library can't be reopened without a fresh pick
+   * (e.g. web session without persisted File handles).
+   */
+  reopenLibrary: (fingerprint: string) => boolean;
   /** Last import diff, if the current session started from a re-import. */
   lastImportDiff: ImportDiffSummary | null;
   /** Import from a web <input webkitdirectory> file list. */
