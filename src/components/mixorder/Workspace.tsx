@@ -228,7 +228,7 @@ function TabStrip({
   return (
     <nav
       aria-label="Sections MixOrder"
-      className="mt-4 border-b border-border"
+      className=""
     >
       <div
         ref={scrollerRef}
