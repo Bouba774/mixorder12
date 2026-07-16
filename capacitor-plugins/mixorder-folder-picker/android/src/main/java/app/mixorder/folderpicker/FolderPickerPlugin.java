@@ -24,9 +24,30 @@ public class FolderPickerPlugin extends Plugin {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(
             Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
         );
         startActivityForResult(call, intent, "pickFolderResult");
+    }
+
+    @PluginMethod
+    public void deleteFile(PluginCall call) {
+        String uriString = call.getString("uri");
+        if (uriString == null || uriString.isEmpty()) {
+            call.reject("missing uri");
+            return;
+        }
+        try {
+            Uri uri = Uri.parse(uriString);
+            boolean ok = DocumentsContract.deleteDocument(
+                getContext().getContentResolver(),
+                uri
+            );
+            if (ok) call.resolve();
+            else call.reject("delete failed");
+        } catch (Exception ex) {
+            call.reject("delete error: " + ex.getMessage());
+        }
     }
 
     @ActivityCallback
@@ -45,6 +66,7 @@ public class FolderPickerPlugin extends Plugin {
             getContext().getContentResolver().takePersistableUriPermission(
                 treeUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             );
         } catch (SecurityException ignored) {
         }

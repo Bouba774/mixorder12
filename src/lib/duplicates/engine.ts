@@ -1,258 +1,123 @@
 /**
- * Duplicate-detection engine.
+ * Détection de doublons — stricte, locale, explicable.
  *
- * Pure, local, deterministic scoring over the main library. Combines
- * several weak signals into a single similarity score:
- *   • normalized-name similarity  (weight 0.55)
- *   • duration proximity          (weight 0.25)
- *   • artist match                (weight 0.10)
- *   • size proximity              (weight 0.07)
- *   • extension match             (weight 0.03)
+ * Un groupe de doublons est formé UNIQUEMENT lorsque les trois critères
+ * suivants sont réunis :
  *
- * The engine is deliberately O(n · k) where k is the average bucket size,
- * NOT O(n²): we bucket tracks by (roundedDuration, firstChars) and only
- * compare inside compatible buckets. That keeps it snappy on libraries
- * of several thousand tracks.
+ *   1. Même cœur de nom (voir `coreName`) — égalité stricte.
+ *   2. Même durée (à ±2s près pour tolérer les variations d'encodage).
+ *   3. Même tonalité Camelot (chaîne exacte, non nulle).
  *
- * Confidence tiers:
- *   ≥ 0.90  → "certain"
- *   ≥ 0.75  → "probable"
- *   ≥ 0.60  → "check"
+ * Si l'un des trois est manquant ou différent, la paire n'est jamais
+ * un doublon. Pas de BPM, pas d'empreinte, pas de score.
  */
 
 import type { Track } from "@/lib/workspace-context";
-import {
-  diceBigram,
-  getExtension,
-  normalizeForDedup,
-  splitArtistTitle,
-} from "./normalize";
-
-export type DupConfidence = "certain" | "probable" | "check";
-
-export interface DupTrackFeatures {
-  id: string;
-  normName: string;
-  normArtist: string;
-  duration: number | null;
-  size: number;
-  extension: string;
-}
-
-export interface DupPair {
-  a: string;
-  b: string;
-  score: number;
-  confidence: DupConfidence;
-}
+import { coreName } from "./normalize";
 
 export interface DupGroup {
   id: string;
-  /** Track ids in the group (unordered). */
+  /** Ids des morceaux du groupe (au moins 2). */
   trackIds: string[];
-  /** Highest pairwise score inside the group. */
-  score: number;
-  confidence: DupConfidence;
-  /** Recommended keeper track id — see `pickKeeper`. */
+  /** Morceau recommandé — voir `pickKeeper`. */
   keeperId: string;
 }
 
-const NAME_WEIGHT = 0.55;
-const DURATION_WEIGHT = 0.25;
-const ARTIST_WEIGHT = 0.1;
-const SIZE_WEIGHT = 0.07;
-const EXT_WEIGHT = 0.03;
+const DURATION_TOLERANCE_SEC = 2;
 
-const CHECK_THRESHOLD = 0.6;
-const PROBABLE_THRESHOLD = 0.75;
-const CERTAIN_THRESHOLD = 0.9;
-
-export function featuresFor(t: Track): DupTrackFeatures {
-  const { artist, title } = splitArtistTitle(t.originalName || t.name);
-  return {
-    id: t.id,
-    normName: title || normalizeForDedup(t.originalName || t.name),
-    normArtist: artist,
-    duration: t.durationSec,
-    size: t.size,
-    extension: t.extension || getExtension(t.originalName),
-  };
-}
-
-function durationScore(a: number | null, b: number | null): number {
-  if (a == null || b == null) return 0.5; // unknown — neutral
-  const diff = Math.abs(a - b);
-  if (diff <= 1) return 1;
-  if (diff <= 3) return 0.85;
-  if (diff <= 6) return 0.6;
-  if (diff <= 12) return 0.3;
-  return 0;
-}
-
-function sizeScore(a: number, b: number): number {
-  if (!a || !b) return 0.5;
-  const ratio = Math.min(a, b) / Math.max(a, b);
-  if (ratio >= 0.98) return 1;
-  if (ratio >= 0.9) return 0.75;
-  if (ratio >= 0.75) return 0.4;
-  return 0.1;
-}
-
-export function pairScore(a: DupTrackFeatures, b: DupTrackFeatures): number {
-  const nameS = diceBigram(a.normName, b.normName);
-  // Cheap rejection: if names share almost nothing, this can't be a dup.
-  if (nameS < 0.35) return 0;
-  const durS = durationScore(a.duration, b.duration);
-  const artistS = a.normArtist && b.normArtist ? diceBigram(a.normArtist, b.normArtist) : 0.5;
-  const sizeS = sizeScore(a.size, b.size);
-  const extS = a.extension === b.extension ? 1 : 0;
-  return (
-    NAME_WEIGHT * nameS +
-    DURATION_WEIGHT * durS +
-    ARTIST_WEIGHT * artistS +
-    SIZE_WEIGHT * sizeS +
-    EXT_WEIGHT * extS
-  );
-}
-
-export function tierFor(score: number): DupConfidence | null {
-  if (score >= CERTAIN_THRESHOLD) return "certain";
-  if (score >= PROBABLE_THRESHOLD) return "probable";
-  if (score >= CHECK_THRESHOLD) return "check";
-  return null;
+function bucketDuration(sec: number): number {
+  // Regroupement grossier (fenêtre 2s) — la tolérance fine est appliquée
+  // ensuite lors de l'appariement à l'intérieur du bucket.
+  return Math.round(sec / DURATION_TOLERANCE_SEC);
 }
 
 /**
- * Bucketing key. Two tracks with the same key are compared; different keys
- * are skipped. We use the first 3 letters of the normalized name — same-song
- * duplicates always share their initial characters after normalization.
- * We DO NOT bucket by duration (durations aren't always known at scan time).
+ * Score de "propreté" du nom d'affichage — plus la chaîne est proche du
+ * cœur (peu de bruit), plus le score est élevé.
  */
-function bucketKey(f: DupTrackFeatures): string {
-  return f.normName.slice(0, 3);
-}
-
-/** Compute all duplicate pairs above the "check" threshold. */
-export function computePairs(features: DupTrackFeatures[]): DupPair[] {
-  const buckets = new Map<string, DupTrackFeatures[]>();
-  for (const f of features) {
-    if (!f.normName) continue;
-    const k = bucketKey(f);
-    const arr = buckets.get(k) ?? [];
-    arr.push(f);
-    buckets.set(k, arr);
-  }
-  const pairs: DupPair[] = [];
-  for (const arr of buckets.values()) {
-    for (let i = 0; i < arr.length; i++) {
-      for (let j = i + 1; j < arr.length; j++) {
-        const s = pairScore(arr[i], arr[j]);
-        const tier = tierFor(s);
-        if (!tier) continue;
-        pairs.push({ a: arr[i].id, b: arr[j].id, score: s, confidence: tier });
-      }
-    }
-  }
-  return pairs;
-}
-
-/** Union-find over pairs → groups of track ids. */
-export function groupsFromPairs(
-  pairs: DupPair[],
-  ignoredPairs: Set<string>,
-): DupGroup[] {
-  const parent = new Map<string, string>();
-  const find = (x: string): string => {
-    let p = parent.get(x) ?? x;
-    if (p === x) return x;
-    p = find(p);
-    parent.set(x, p);
-    return p;
-  };
-  const union = (a: string, b: string) => {
-    const ra = find(a);
-    const rb = find(b);
-    if (ra !== rb) parent.set(ra, rb);
-  };
-  const pairKey = (a: string, b: string) => (a < b ? `${a}::${b}` : `${b}::${a}`);
-  const activePairs = pairs.filter((p) => !ignoredPairs.has(pairKey(p.a, p.b)));
-  for (const p of activePairs) union(p.a, p.b);
-
-  const groups = new Map<string, { ids: Set<string>; score: number; tier: DupConfidence }>();
-  for (const p of activePairs) {
-    const root = find(p.a);
-    const g = groups.get(root) ?? { ids: new Set<string>(), score: 0, tier: "check" as DupConfidence };
-    g.ids.add(p.a);
-    g.ids.add(p.b);
-    if (p.score > g.score) {
-      g.score = p.score;
-      g.tier = p.confidence;
-    }
-    groups.set(root, g);
-  }
-  return Array.from(groups.entries()).map(([root, g]) => ({
-    id: `g_${root}`,
-    trackIds: Array.from(g.ids),
-    score: g.score,
-    confidence: g.tier,
-    keeperId: root, // temporary; caller sets real keeper via pickKeeper
-  }));
+function nameCleanliness(t: Track): number {
+  const display = t.name || t.originalName;
+  const core = coreName(display);
+  if (!core) return 0;
+  // Ratio du cœur sur la longueur d'affichage : plus il est proche de 1,
+  // plus le nom est déjà propre.
+  return core.length / Math.max(1, display.length);
 }
 
 /**
- * Recommended keeper policy: prefer richer metadata and better quality.
- * Priority:
- *   1. has bpm AND musicalKey
- *   2. is favorite
- *   3. has bpm OR musicalKey
- *   4. largest file size (proxy for higher bitrate)
- *   5. earliest addedAt (oldest wins — stable id)
+ * Politique du "meilleur" morceau à conserver.
+ * Ordre demandé :
+ *   1. Nom le plus propre
+ *   2. Tonalité détectée
+ *   3. BPM détecté
+ *   4. Durée la plus complète (la plus longue)
+ *   5. Fichier le plus récent en cas d'égalité
  */
 export function pickKeeper(tracks: Track[]): string {
-  const score = (t: Track) => {
-    let s = 0;
-    if (t.bpm != null && t.musicalKey) s += 1000;
-    if (t.favorite) s += 500;
-    if (t.bpm != null) s += 200;
-    if (t.musicalKey) s += 200;
-    s += Math.min(300, t.size / (1024 * 1024)); // up to 300 pts for size
-    s -= (Date.now() - (t.addedAt || 0)) / (1000 * 60 * 60 * 24 * 365); // slight penalty per year
-    return s;
-  };
-  let best = tracks[0];
-  let bestScore = score(best);
-  for (let i = 1; i < tracks.length; i++) {
-    const s = score(tracks[i]);
-    if (s > bestScore) {
-      best = tracks[i];
-      bestScore = s;
-    }
-  }
-  return best.id;
+  const scored = tracks.map((t) => ({
+    t,
+    clean: nameCleanliness(t),
+    hasKey: t.camelot != null || t.musicalKey != null ? 1 : 0,
+    hasBpm: t.bpm != null ? 1 : 0,
+    dur: t.durationSec ?? 0,
+    when: t.modifiedAt ?? t.addedAt ?? 0,
+  }));
+  scored.sort((a, b) => {
+    if (b.clean !== a.clean) return b.clean - a.clean;
+    if (b.hasKey !== a.hasKey) return b.hasKey - a.hasKey;
+    if (b.hasBpm !== a.hasBpm) return b.hasBpm - a.hasBpm;
+    if (b.dur !== a.dur) return b.dur - a.dur;
+    return b.when - a.when;
+  });
+  return scored[0].t.id;
 }
 
 /**
- * End-to-end: from a library, produce the final list of groups with
- * recommended keepers and applied ignore-list.
+ * Renvoie tous les groupes de doublons confirmés (au moins 2 morceaux).
+ * Tri : plus grands groupes d'abord, puis nom alphabétique.
  */
-export function detectDuplicates(
-  tracks: Track[],
-  ignoredPairs: Set<string> = new Set(),
-): DupGroup[] {
-  const byId = new Map(tracks.map((t) => [t.id, t]));
-  const features = tracks.map(featuresFor);
-  const pairs = computePairs(features);
-  const groups = groupsFromPairs(pairs, ignoredPairs);
-  return groups
-    .map((g) => {
-      const groupTracks = g.trackIds.map((id) => byId.get(id)!).filter(Boolean);
-      return { ...g, keeperId: pickKeeper(groupTracks) };
-    })
-    .sort((a, b) => b.score - a.score);
-}
+export function detectDuplicates(tracks: Track[]): DupGroup[] {
+  // Bucket par (cœur, durée arrondie, camelot). Camelot NULL ⇒ ignoré.
+  const buckets = new Map<string, Track[]>();
 
-export const DUP_THRESHOLDS = {
-  check: CHECK_THRESHOLD,
-  probable: PROBABLE_THRESHOLD,
-  certain: CERTAIN_THRESHOLD,
-} as const;
+  for (const t of tracks) {
+    if (!t.camelot) continue; // critère 3 : tonalité obligatoire
+    if (t.durationSec == null || t.durationSec <= 0) continue; // critère 2
+    const core = coreName(t.name || t.originalName);
+    if (!core) continue; // critère 1
+    const key = `${core}|${bucketDuration(t.durationSec)}|${t.camelot}`;
+    const arr = buckets.get(key) ?? [];
+    arr.push(t);
+    buckets.set(key, arr);
+  }
+
+  const groups: DupGroup[] = [];
+  for (const arr of buckets.values()) {
+    if (arr.length < 2) continue;
+
+    // Vérification fine de la durée à l'intérieur du bucket
+    // (±DURATION_TOLERANCE_SEC autour du min).
+    const sorted = [...arr].sort(
+      (a, b) => (a.durationSec ?? 0) - (b.durationSec ?? 0),
+    );
+    const first = sorted[0];
+    const kept = sorted.filter(
+      (t) =>
+        Math.abs((t.durationSec ?? 0) - (first.durationSec ?? 0)) <=
+        DURATION_TOLERANCE_SEC,
+    );
+    if (kept.length < 2) continue;
+
+    const keeperId = pickKeeper(kept);
+    // Id stable = ids triés + jointure — survit aux re-renders.
+    const gid = "g_" + kept.map((t) => t.id).sort().join("_").slice(0, 60);
+    groups.push({
+      id: gid,
+      trackIds: kept.map((t) => t.id),
+      keeperId,
+    });
+  }
+
+  groups.sort((a, b) => b.trackIds.length - a.trackIds.length);
+  return groups;
+}
