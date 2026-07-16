@@ -57,11 +57,27 @@ export function Workspace() {
   const [tab, setTab] = useState<TabId>("library");
   const [transitionKey, setTransitionKey] = useState(0);
   const { trackId: playingId } = usePlayer();
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerH, setHeaderH] = useState(0);
 
   useEffect(() => {
     setTransitionKey((k) => k + 1);
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
   }, [tab]);
+
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const measure = () => setHeaderH(el.getBoundingClientRect().height);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   if (!project) return null;
 
@@ -83,13 +99,11 @@ export function Workspace() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
-      {/* ─── Sticky top navigation area (header + active library + tabs) ─── */}
-      <div
-        className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
-      >
+      {/* ─── Sticky header (always visible) ─── */}
       <header
-        className="flex items-center justify-between px-4 pb-3 pt-3"
+        ref={headerRef}
+        className="sticky top-0 z-50 flex items-center justify-between bg-background/95 px-4 pb-2.5 pt-2.5 backdrop-blur"
+        style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.625rem)" }}
       >
         <button
           type="button"
@@ -97,8 +111,8 @@ export function Workspace() {
           className="flex items-center gap-2.5 rounded-xl px-1 py-1 transition-opacity hover:opacity-85"
           aria-label="Retour à la bibliothèque"
         >
-          <Logo size={32} />
-          <span className="font-display text-lg font-bold tracking-tight text-foreground">
+          <Logo size={30} />
+          <span className="font-display text-[17px] font-bold tracking-tight text-foreground">
             MixOrder
           </span>
         </button>
@@ -107,52 +121,47 @@ export function Workspace() {
           onClick={() => setTab(isSettings ? "library" : "settings")}
           aria-label={isSettings ? "Fermer les paramètres" : "Ouvrir les paramètres"}
           className={`grid h-10 w-10 place-items-center rounded-lg transition-colors ${
-            isSettings
-              ? "text-primary"
-              : "text-muted-foreground hover:text-foreground"
+            isSettings ? "text-primary" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          {isSettings ? <ArrowLeft className="h-[22px] w-[22px]" /> : <SettingsIcon className="h-[22px] w-[22px]" strokeWidth={1.75} />}
+          {isSettings ? <ArrowLeft className="h-5 w-5" /> : <SettingsIcon className="h-5 w-5" strokeWidth={1.75} />}
         </button>
       </header>
 
       {!isSettings && (
         <>
-          {/* ─── Active library card ─── */}
+          {/* ─── Active library card — scrolls away with page ─── */}
           <section
             aria-label="Bibliothèque active"
-            className="mx-4 mb-3 rounded-2xl border border-border bg-surface p-3.5 shadow-card"
+            className="mx-4 mb-4 mt-1 rounded-2xl border border-border bg-surface p-4 shadow-card"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3.5">
               <div
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-primary-foreground shadow-gold"
+                className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-primary-foreground shadow-gold"
                 style={{ background: "var(--gradient-primary)" }}
               >
                 <LibraryIcon className="h-6 w-6" strokeWidth={2.25} />
               </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate font-display text-base font-bold leading-tight text-foreground">
+              <div className="min-w-0 flex-1 space-y-1">
+                <h1 className="truncate font-display text-[17px] font-bold leading-tight text-foreground">
                   {project.name || "Sans nom"}
                 </h1>
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="tabular-nums">
-                    {total} morceau{total > 1 ? "x" : ""}
-                  </span>
-                  <span aria-hidden>·</span>
-                  <span
-                    className={`inline-flex items-center gap-1 ${
-                      analysisDone ? "text-success" : "text-primary"
-                    }`}
-                  >
-                    {analysisDone ? (
-                      <CheckCircle2 className="h-3 w-3" />
-                    ) : (
-                      <Loader2 className={total === 0 ? "h-3 w-3" : "h-3 w-3 animate-spin"} />
-                    )}
-                    {analysisLabel}
-                  </span>
+                <div className="text-[12.5px] tabular-nums text-muted-foreground">
+                  {total} morceau{total > 1 ? "x" : ""}
                 </div>
-                <div className="text-[11px] text-muted-foreground/80">
+                <div
+                  className={`inline-flex items-center gap-1 text-[12.5px] ${
+                    analysisDone ? "text-success" : "text-primary"
+                  }`}
+                >
+                  {analysisDone ? (
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Loader2 className={total === 0 ? "h-3.5 w-3.5" : "h-3.5 w-3.5 animate-spin"} />
+                  )}
+                  {analysisLabel}
+                </div>
+                <div className="text-[11.5px] text-muted-foreground/80">
                   Importée {formatImportedRelative(project.createdAt)}
                 </div>
               </div>
@@ -167,17 +176,18 @@ export function Workspace() {
             </div>
           </section>
 
-          {/* ─── Horizontal tab strip ─── */}
-          <TabStrip
-            active={tab as MainTabId}
-            onSelect={(id) => setTab(id)}
-          />
+          {/* ─── Sticky tab strip (pins under header when scrolling) ─── */}
+          <div
+            className="sticky z-40 border-b border-border bg-background/95 backdrop-blur"
+            style={{ top: headerH }}
+          >
+            <TabStrip active={tab as MainTabId} onSelect={(id) => setTab(id)} />
+          </div>
         </>
       )}
-      </div>
 
       <main
-        className={isSettings ? "flex-1 px-4 pt-4" : "flex-1 px-4 pt-3"}
+        className={isSettings ? "flex-1 px-4 pt-4" : "flex-1 px-4 pt-4"}
         style={{
           paddingBottom: `calc(${playingId ? miniPlayerHeight : 0}px + env(safe-area-inset-bottom) + 1rem)`,
         }}
@@ -234,7 +244,7 @@ function TabStrip({
         ref={scrollerRef}
         className="relative overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="relative flex min-w-max items-end gap-2 px-4">
+        <div className="relative flex min-w-max items-end gap-6 px-4">
           {TABS.map((t) => {
             const isActive = t.id === active;
             return (
@@ -246,7 +256,7 @@ function TabStrip({
                 type="button"
                 onClick={() => onSelect(t.id)}
                 aria-current={isActive ? "page" : undefined}
-                className={`relative shrink-0 whitespace-nowrap px-2 pb-2.5 pt-1 text-[15px] transition-colors ${
+                className={`relative shrink-0 whitespace-nowrap px-1 pb-2.5 pt-2 text-[14px] transition-colors ${
                   isActive
                     ? "font-semibold text-foreground"
                     : "font-medium text-muted-foreground hover:text-foreground"
