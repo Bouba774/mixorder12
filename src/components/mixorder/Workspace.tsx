@@ -244,7 +244,7 @@ function TabStrip({
         ref={scrollerRef}
         className="relative overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="relative flex min-w-max items-end gap-2 px-4">
+        <div className="relative flex min-w-max items-end gap-6 px-4">
           {TABS.map((t) => {
             const isActive = t.id === active;
             return (
@@ -256,7 +256,7 @@ function TabStrip({
                 type="button"
                 onClick={() => onSelect(t.id)}
                 aria-current={isActive ? "page" : undefined}
-                className={`relative shrink-0 whitespace-nowrap px-2 pb-2.5 pt-1 text-[15px] transition-colors ${
+                className={`relative shrink-0 whitespace-nowrap px-1 pb-2.5 pt-2 text-[14px] transition-colors ${
                   isActive
                     ? "font-semibold text-foreground"
                     : "font-medium text-muted-foreground hover:text-foreground"
