@@ -212,8 +212,21 @@ body {
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.015em;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
+
+  h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  small {
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
+  }
+
 
   ::selection {
     background: color-mix(in oklab, var(--primary) 40%, transparent);
