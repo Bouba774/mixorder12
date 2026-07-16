@@ -163,15 +163,23 @@
   color-scheme: light;
 }
 
+html {
+  /* Slightly tighter base scale for TempoKey-like density.
+     1rem = 15px instead of 16px, propagates across all Tailwind text-* utilities. */
+  font-size: 93.75%;
+}
+
 html,
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: "ss01", "cv11";
+  letter-spacing: -0.005em;
 }
 
 body {
