@@ -37,6 +37,7 @@ import { useLibraryView } from "@/lib/library/view-context";
 import { SORT_OPTIONS } from "@/lib/library/sort";
 import { useDuplicates } from "@/hooks/useDuplicates";
 import { PlayPauseButton } from "../player/PlayPauseButton";
+import { TrackInfoSheet } from "../TrackInfoSheet";
 
 // ─────────────────────────────────────────────────────────────
 // Types & constants
