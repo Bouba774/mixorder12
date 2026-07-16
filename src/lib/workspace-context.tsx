@@ -661,6 +661,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       lastImportDiff,
       openProject,
       openImportedProject,
+      reopenLibrary,
       closeProject,
       updateTrack,
       setTrackAnalysis,
