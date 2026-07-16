@@ -325,6 +325,30 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setRecentLibraries(listRecentLibraries());
   }, []);
 
+  const reopenLibrary = useCallback((fingerprint: string): boolean => {
+    const manifest = loadLibraryManifest(fingerprint);
+    if (!manifest || manifest.tracks.length === 0) return false;
+    const native = Capacitor.isNativePlatform();
+    const imported: ImportedProject = {
+      name: manifest.name,
+      tracks: manifest.tracks.map((t) => ({
+        originalName: t.originalName,
+        path: t.path,
+        mimeType: t.mimeType,
+        size: t.size,
+        // Native: rebuild the playable URL from the SAF URI we stored.
+        // Web: no persistent handle — skip; caller should fall back to picker.
+        url: native ? Capacitor.convertFileSrc(t.path) : "",
+      })),
+    };
+    if (!native && imported.tracks.some((t) => !t.url)) return false;
+    const { project, diff } = buildProject(imported);
+    setProject(project);
+    setLastImportDiff(diff);
+    setRecentLibraries(listRecentLibraries());
+    return true;
+  }, []);
+
   const openProject = useCallback((input: FileList | File[]) => {
     const imported = projectFromFileList(input);
     if (!imported) return;
