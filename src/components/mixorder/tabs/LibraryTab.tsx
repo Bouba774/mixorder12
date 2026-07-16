@@ -275,6 +275,7 @@ export function LibraryTab() {
                     isDuplicate={duplicateIds.has(t.id)}
                     canDrag={canReorder}
                     onToggleSelect={() => toggleSelect(t.id)}
+                    onOpenInfo={() => setInfoTrackId(t.id)}
                     style={{
                       animationDelay: `${Math.min(i * 12, 240)}ms`,
                     }}
