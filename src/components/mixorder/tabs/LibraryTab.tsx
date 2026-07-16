@@ -378,6 +378,8 @@ export function LibraryTab() {
           </ul>
         </BottomSheet>
       )}
+
+      <TrackInfoSheet trackId={infoTrackId} onClose={() => setInfoTrackId(null)} />
     </div>
   );
 }
