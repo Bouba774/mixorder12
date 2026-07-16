@@ -1,31 +1,39 @@
 /**
- * Aggressive title normalization for duplicate detection.
+ * Extract the "core" name of a track for duplicate detection.
  *
- * This is intentionally more aggressive than the OCR-matching normalization
- * in `src/lib/analysis/name-normalize.ts`. Duplicates often come from the
- * same track saved with wildly different filename decorations:
+ * Objectif : deux fichiers du même morceau, quelle que soit leur
+ * décoration (numéro en tête, tags qualité, "Official Audio", etc.),
+ * doivent produire exactement la même chaîne canonique.
  *
- *   "01 - Gazo.mp3"
- *   "125 BPM - Gazo.mp3"
- *   "5A - Gazo (Official Video).mp3"
- *   "Gazo.mp3"
- *
- * We strip every known prefix (numeric, BPM, Camelot key), quality tags,
- * feat/prod parentheses, brackets, punctuation, diacritics, and collapse
- * whitespace. The result is a canonical comparable string.
+ * Aucun score, aucune distance : la comparaison finale est une égalité
+ * stricte de la chaîne renvoyée par `coreName()`.
  */
 
-// Camelot codes are 1..12 followed by A or B (e.g. "8A", "12B").
-const CAMELOT_PREFIX_RE = /^\s*(?:\d{1,2}[ab])[\s._\-–—]+/i;
-const BPM_PREFIX_RE = /^\s*\d{2,3}\s*bpm[\s._\-–—]+/i;
-const BPM_ANYWHERE_RE = /\b\d{2,3}\s*bpm\b/gi;
-const NUMERIC_PREFIX_RE = /^[\s\W_]*(?:\d{1,4}[\s._\-–—]+)+/;
-const EXTENSION_RE = /\.(mp3|wav|flac|m4a|aac|ogg|opus|wma|aiff|aif)$/i;
-const QUALITY_RE = /\((?:\d{2,4}\s*k(?:bps)?|hd|hq|remaster(?:ed)?|clean|explicit|official|audio|video|lyrics?|mv|4k)\)/gi;
-const BRACKET_QUALITY_RE = /\[(?:\d{2,4}\s*k(?:bps)?|hd|hq|remaster(?:ed)?|clean|explicit|official|audio|video|lyrics?|mv|4k)\]/gi;
-const OFFICIAL_WORDS_RE = /\b(?:official|music|video|audio|lyrics?|clip|mv|hd|hq|4k)\b/gi;
-const FEAT_RE = /\((?:feat|ft|featuring|prod|prod by|with)\.?[^)]*\)/gi;
-const FEAT_INLINE_RE = /\b(?:feat|ft|featuring|prod)\.?\s*/gi;
+const EXTENSION_RE =
+  /\.(mp3|wav|flac|m4a|aac|ogg|opus|wma|aiff|aif)$/i;
+
+/** Mots parasites à supprimer du nom, où qu'ils apparaissent. */
+const NOISE_WORDS = [
+  "official", "audio", "video", "music", "clip", "lyrics", "lyric",
+  "visualizer", "visualiser", "mv", "hd", "hq", "4k", "8k",
+  "remaster", "remastered", "remasterized", "version",
+  "explicit", "clean", "radio edit", "radio", "edit",
+  "prod", "prodby", "feat", "ft", "featuring",
+];
+
+/** Tags qualité entre parenthèses / crochets — retirés en bloc. */
+const TAG_PARENS_RE =
+  /[\(\[][^)\]]*?(?:\d{2,4}\s*k(?:bps)?|kbps|official|audio|video|lyrics?|clip|visualizer|visualiser|mv|hd|hq|4k|8k|remaster(?:ed)?|version|explicit|clean|radio\s*edit|feat|ft|prod)[^)\]]*[\)\]]/gi;
+
+/** Segment "125bpm", "125 bpm" n'importe où. */
+const BPM_ANY_RE = /\b\d{2,3}\s*bpm\b/gi;
+
+/** Notation Camelot n'importe où (8A, 12b, ...). */
+const CAMELOT_ANY_RE = /\b\d{1,2}[ab]\b/gi;
+
+/** Préfixes de piste : "01 -", "01_", "1.", "01 – ", etc. */
+const TRACK_NUMBER_PREFIX_RE =
+  /^[\s\-_.]*\d{1,4}(?:\s*[-_.–—]+\s*|\s+)/;
 
 export function stripExtension(name: string): string {
   return name.replace(EXTENSION_RE, "");
@@ -36,70 +44,50 @@ export function getExtension(name: string): string {
   return m ? m[1].toLowerCase() : "";
 }
 
-/** Full canonical normalization for duplicate grouping. */
-export function normalizeForDedup(input: string | null | undefined): string {
+/**
+ * Retourne le "cœur" du nom (chaîne canonique) — vide si rien
+ * d'exploitable ne subsiste.
+ */
+export function coreName(input: string | null | undefined): string {
   if (!input) return "";
   let s = String(input);
+
+  // 1. Extension
   s = stripExtension(s);
 
-  // Iteratively strip known prefixes (they can stack: "01 - 125 BPM - 5A - Title")
-  for (let i = 0; i < 6; i++) {
+  // 2. Tags entre parenthèses / crochets (avant de casser la ponctuation)
+  s = s.replace(TAG_PARENS_RE, " ");
+
+  // 3. Préfixes de piste "01 - ", répétés (peut s'accumuler)
+  for (let i = 0; i < 4; i++) {
     const before = s;
-    s = s.replace(CAMELOT_PREFIX_RE, "");
-    s = s.replace(BPM_PREFIX_RE, "");
-    s = s.replace(NUMERIC_PREFIX_RE, "");
+    s = s.replace(TRACK_NUMBER_PREFIX_RE, "");
     if (s === before) break;
   }
 
-  s = s.replace(BPM_ANYWHERE_RE, " ");
-  s = s.replace(FEAT_RE, " ");
-  s = s.replace(QUALITY_RE, " ").replace(BRACKET_QUALITY_RE, " ");
-  s = s.replace(OFFICIAL_WORDS_RE, " ");
-  s = s.replace(FEAT_INLINE_RE, " ");
+  // 4. Camelot / BPM n'importe où
+  s = s.replace(BPM_ANY_RE, " ");
+  s = s.replace(CAMELOT_ANY_RE, " ");
+
+  // 5. Tirets multiples, underscores, points → espace
   s = s.replace(/[_\-–—.·|/\\]+/g, " ");
+
+  // 6. Diacritiques
   s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // 7. Ponctuation restante
   s = s.replace(/[^\p{L}\p{N}\s]/gu, " ");
-  s = s.replace(/\s+/g, " ").trim().toLowerCase();
+
+  // 8. Mots parasites (en tokens entiers)
+  s = s.toLowerCase();
+  const noise = new Set(NOISE_WORDS.map((w) => w.replace(/\s+/g, "")));
+  s = s
+    .split(/\s+/)
+    .filter((tok) => tok && !noise.has(tok))
+    .join(" ");
+
+  // 9. Espaces multiples
+  s = s.replace(/\s+/g, " ").trim();
+
   return s;
-}
-
-/** Try to split a canonical string into `{ artist, title }` if a dash is present in the ORIGINAL. */
-export function splitArtistTitle(originalName: string): { artist: string; title: string } {
-  const cleaned = stripExtension(originalName);
-  // Prefer " - " over "-" (a lone hyphen is often part of a word).
-  const idx = cleaned.indexOf(" - ");
-  if (idx > 0) {
-    return {
-      artist: normalizeForDedup(cleaned.slice(0, idx)),
-      title: normalizeForDedup(cleaned.slice(idx + 3)),
-    };
-  }
-  return { artist: "", title: normalizeForDedup(cleaned) };
-}
-
-/** Dice coefficient on character bigrams, order-tolerant. */
-export function diceBigram(a: string, b: string): number {
-  if (!a || !b) return 0;
-  if (a === b) return 1;
-  if (a.length < 2 || b.length < 2) return 0;
-  const bigrams = (s: string) => {
-    const m = new Map<string, number>();
-    for (let i = 0; i < s.length - 1; i++) {
-      const g = s.slice(i, i + 2);
-      m.set(g, (m.get(g) ?? 0) + 1);
-    }
-    return m;
-  };
-  const A = bigrams(a);
-  const B = bigrams(b);
-  let inter = 0;
-  let totalA = 0;
-  let totalB = 0;
-  for (const v of A.values()) totalA += v;
-  for (const v of B.values()) totalB += v;
-  for (const [g, ca] of A) {
-    const cb = B.get(g);
-    if (cb) inter += Math.min(ca, cb);
-  }
-  return (2 * inter) / (totalA + totalB);
 }

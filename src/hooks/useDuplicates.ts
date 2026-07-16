@@ -1,37 +1,25 @@
 /**
- * Live duplicate detection hook.
+ * Hook de détection des doublons — version stricte (3 critères).
  *
- * Runs the detector against the current library, applies persisted user
- * decisions (ignored pairs, custom keepers), and exposes actions to mutate
- * those decisions. Detection is memoized by track-signature (id + name +
- * size + durationSec) so it only recomputes when the library actually
- * changes — new tracks trigger a fresh, cheap pass.
+ * La détection est purement dérivée de la bibliothèque active.
+ * Aucune notion de score, de tier ou de "à vérifier". Un groupe est un
+ * doublon confirmé, sinon il n'apparaît pas.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWorkspace } from "@/lib/workspace-context";
-import {
-  detectDuplicates,
-  type DupConfidence,
-  type DupGroup,
-} from "@/lib/duplicates/engine";
+import { detectDuplicates, type DupGroup } from "@/lib/duplicates/engine";
 import { projectFingerprint } from "@/lib/analysis/persistence";
 import {
   loadDedupState,
-  pairKey,
   saveDedupState,
   type DedupState,
 } from "@/lib/duplicates/persistence";
 
 export interface UseDuplicatesResult {
   groups: DupGroup[];
-  state: DedupState;
   isReady: boolean;
-  /** Ignore an entire group (adds ignored pairs between all members). */
-  ignoreGroup: (group: DupGroup) => void;
-  /** Restore all ignored groups. */
-  restoreIgnored: () => void;
-  /** Override the recommended keeper for a group. */
+  /** Change le morceau à garder pour un groupe donné. */
   setKeeper: (group: DupGroup, trackId: string) => void;
 }
 
@@ -46,7 +34,9 @@ export function useDuplicates(): UseDuplicatesResult {
     [project],
   );
   const [state, setState] = useState<DedupState>(() =>
-    fingerprint ? loadDedupState(fingerprint) : { v: 1, ignoredPairs: [], keeperOverrides: {}, updatedAt: 0 },
+    fingerprint
+      ? loadDedupState(fingerprint)
+      : { v: 2, keeperOverrides: {}, updatedAt: 0 },
   );
 
   useEffect(() => {
@@ -64,9 +54,7 @@ export function useDuplicates(): UseDuplicatesResult {
 
   const groups = useMemo(() => {
     if (!project) return [];
-    const ignored = new Set(state.ignoredPairs);
-    const raw = detectDuplicates(project.tracks, ignored);
-    // Apply keeper overrides.
+    const raw = detectDuplicates(project.tracks);
     return raw.map((g) => {
       const sig = groupSignature(g);
       const override = state.keeperOverrides[sig];
@@ -76,24 +64,6 @@ export function useDuplicates(): UseDuplicatesResult {
       return g;
     });
   }, [project, state]);
-
-  const ignoreGroup = useCallback(
-    (group: DupGroup) => {
-      const next = new Set(state.ignoredPairs);
-      const ids = group.trackIds;
-      for (let i = 0; i < ids.length; i++) {
-        for (let j = i + 1; j < ids.length; j++) {
-          next.add(pairKey(ids[i], ids[j]));
-        }
-      }
-      persist({ ...state, ignoredPairs: Array.from(next) });
-    },
-    [state, persist],
-  );
-
-  const restoreIgnored = useCallback(() => {
-    persist({ ...state, ignoredPairs: [] });
-  }, [state, persist]);
 
   const setKeeper = useCallback(
     (group: DupGroup, trackId: string) => {
@@ -108,12 +78,9 @@ export function useDuplicates(): UseDuplicatesResult {
 
   return {
     groups,
-    state,
     isReady: !!project,
-    ignoreGroup,
-    restoreIgnored,
     setKeeper,
   };
 }
 
-export type { DupConfidence, DupGroup };
+export type { DupGroup };

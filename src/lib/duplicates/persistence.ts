@@ -1,21 +1,21 @@
 /**
- * Persist user decisions on duplicate groups: ignored pairs, custom keepers.
- * Keyed by project fingerprint (same as analysis snapshots).
+ * Persistance des décisions utilisateur sur les groupes de doublons.
+ * Un seul état conservé : le morceau à garder par groupe (override).
+ * Aucun mécanisme "d'ignore" — un groupe est soit un doublon confirmé,
+ * soit il n'apparaît pas.
  */
 
 const PREFIX = "mixorder:dedup:";
 
 export interface DedupState {
-  v: 1;
-  /** Set of "a::b" pair keys (a < b) the user chose to ignore. */
-  ignoredPairs: string[];
-  /** Group signature → user-chosen keeper track id. */
+  v: 2;
+  /** Signature du groupe → id du morceau choisi comme "à garder". */
   keeperOverrides: Record<string, string>;
   updatedAt: number;
 }
 
 function empty(): DedupState {
-  return { v: 1, ignoredPairs: [], keeperOverrides: {}, updatedAt: Date.now() };
+  return { v: 2, keeperOverrides: {}, updatedAt: Date.now() };
 }
 
 function storage(): Storage | null {
@@ -26,19 +26,18 @@ function storage(): Storage | null {
   }
 }
 
-export function pairKey(a: string, b: string): string {
-  return a < b ? `${a}::${b}` : `${b}::${a}`;
-}
-
 export function loadDedupState(fingerprint: string): DedupState {
   const s = storage();
   if (!s) return empty();
   try {
     const raw = s.getItem(PREFIX + fingerprint);
     if (!raw) return empty();
-    const parsed = JSON.parse(raw) as DedupState;
-    if (parsed?.v !== 1) return empty();
-    return parsed;
+    const parsed = JSON.parse(raw) as Partial<DedupState>;
+    return {
+      v: 2,
+      keeperOverrides: parsed.keeperOverrides ?? {},
+      updatedAt: parsed.updatedAt ?? Date.now(),
+    };
   } catch {
     return empty();
   }
