@@ -156,8 +156,8 @@ export function HomeTab({ onNavigate, onChangeLibrary }: HomeTabProps) {
           />
           <ActionCard
             icon={ListMusic}
-            label="Set Builder"
-            desc="Playlists harmoniques"
+            label="AutoMix"
+            desc="Playlist automatique"
             onClick={() => onNavigate("setbuilder")}
           />
           <ActionCard
