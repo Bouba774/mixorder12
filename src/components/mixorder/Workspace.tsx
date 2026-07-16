@@ -40,7 +40,7 @@ const TABS: ReadonlyArray<{ id: MainTabId; label: string }> = [
   { id: "analysis", label: "Analyse" },
   { id: "duplicates", label: "Doublons" },
   { id: "rename", label: "Renommage" },
-  { id: "setbuilder", label: "Set Builder" },
+  { id: "setbuilder", label: "AutoMix" },
 ];
 
 function formatImportedRelative(ts: number): string {

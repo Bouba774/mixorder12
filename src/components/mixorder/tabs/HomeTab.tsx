@@ -156,8 +156,8 @@ export function HomeTab({ onNavigate, onChangeLibrary }: HomeTabProps) {
           />
           <ActionCard
             icon={ListMusic}
-            label="Set Builder"
-            desc="Playlists harmoniques"
+            label="AutoMix"
+            desc="Playlist automatique"
             onClick={() => onNavigate("setbuilder")}
           />
           <ActionCard
@@ -548,8 +548,8 @@ function ResumeSection({
   } else if (activeSetName) {
     target = {
       tab: "setbuilder",
-      title: `Continuer le set « ${activeSetName} »`,
-      desc: "Ton set en cours d'édition",
+      title: "Reprendre l'AutoMix",
+      desc: "Ta playlist en cours",
       icon: ListMusic,
     };
   } else {
@@ -635,8 +635,8 @@ function SmartTips({
   if (setsCount === 0)
     tips.push({
       icon: ListMusic,
-      text: "Aucun set n'a encore été créé.",
-      action: { label: "Créer un set", tab: "setbuilder" },
+      text: "Aucun AutoMix généré pour l'instant.",
+      action: { label: "Lancer AutoMix", tab: "setbuilder" },
     });
 
   if (tips.length === 0) {

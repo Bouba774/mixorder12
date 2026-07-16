@@ -533,7 +533,7 @@ const WORKFLOW = [
   {
     icon: ListMusic,
     title: "Prépare ton set",
-    desc: "Set Builder + Harmonic Mixing te suggèrent des transitions cohérentes en BPM et tonalité.",
+    desc: "AutoMix génère l'ordre idéal en un tap avec Harmonic Mixing intégré.",
   },
 ];
 
@@ -555,8 +555,8 @@ const FEATURES = [
   },
   {
     icon: ListMusic,
-    title: "Set Builder",
-    desc: "Construis tes sets pas à pas.",
+    title: "AutoMix",
+    desc: "Playlist auto en un tap.",
   },
   {
     icon: KeyRound,
