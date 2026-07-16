@@ -176,6 +176,49 @@ export const SET_MODES: SetMode[] = [
     description: "Ordre libre, à réorganiser manuellement.",
     build: (t) => t.map((x) => x.id),
   },
+  {
+    id: "intelligent",
+    label: "Intelligent Mix",
+    description: "Recommandé — analyse harmonique et énergie combinées.",
+    build: buildHarmonic,
+  },
+  {
+    id: "open-format",
+    label: "Open Format",
+    description: "Variations douces, styles mélangés.",
+    build: buildProgressive,
+  },
+  {
+    id: "peak-time",
+    label: "Peak Time",
+    description: "Énergie haute, ambiance club.",
+    build: buildHotCold,
+  },
+  {
+    id: "warm-up",
+    label: "Warm Up",
+    description: "Montée douce, début de soirée.",
+    build: buildColdHot,
+  },
+  {
+    id: "closing-set",
+    label: "Closing Set",
+    description: "Descente progressive, fin de soirée.",
+    build: (t) => buildEnergy(t, "desc"),
+  },
+  {
+    id: "random",
+    label: "Random",
+    description: "Ordre aléatoire.",
+    build: (t) => {
+      const arr = [...t];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr.map((x) => x.id);
+    },
+  },
 ];
 
 export function getMode(id: SetModeId): SetMode {
