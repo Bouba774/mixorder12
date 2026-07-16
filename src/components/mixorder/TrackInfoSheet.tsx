@@ -119,7 +119,7 @@ function SheetBody({
   const commitBpm = () => {
     const trimmed = bpmDraft.trim();
     if (trimmed === "") {
-      setTrackAnalysis(track.id, { bpm: null }, "manual");
+      setTrackAnalysis(track.id, { bpm: null }, "manual-discdj");
       return;
     }
     const parsed = Math.round(Number(trimmed));
@@ -129,26 +129,26 @@ function SheetBody({
       return;
     }
     if (parsed !== Math.round(track.bpm ?? -1)) {
-      setTrackAnalysis(track.id, { bpm: parsed }, "manual");
+      setTrackAnalysis(track.id, { bpm: parsed }, "manual-discdj");
       quickFlash(setFlash, "BPM enregistré");
     }
   };
 
   const onKeyChange = (nextKey: string) => {
-    setTrackAnalysis(track.id, { musicalKey: nextKey || null }, "manual");
+    setTrackAnalysis(track.id, { musicalKey: nextKey || null }, "manual-discdj");
     quickFlash(setFlash, "Tonalité enregistrée");
   };
 
   const resetBpm = () => {
-    setTrackAnalysis(track.id, { bpm: null }, "manual");
+    setTrackAnalysis(track.id, { bpm: null }, "manual-discdj");
     quickFlash(setFlash, "BPM réinitialisé");
   };
   const resetKey = () => {
-    setTrackAnalysis(track.id, { musicalKey: null }, "manual");
+    setTrackAnalysis(track.id, { musicalKey: null }, "manual-discdj");
     quickFlash(setFlash, "Tonalité réinitialisée");
   };
   const reanalyze = () => {
-    setTrackAnalysis(track.id, { bpm: null, musicalKey: null }, "manual");
+    setTrackAnalysis(track.id, { bpm: null, musicalKey: null }, "manual-discdj");
     quickFlash(setFlash, "Réanalyse en cours…");
   };
 
