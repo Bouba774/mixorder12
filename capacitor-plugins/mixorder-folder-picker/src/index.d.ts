@@ -13,6 +13,11 @@ export interface FolderPickerResult {
 
 export interface FolderPickerPlugin {
   pickFolder(): Promise<FolderPickerResult>;
+  /**
+   * Delete a file by SAF URI. Requires that the URI belongs to a tree
+   * previously granted via `pickFolder()`.
+   */
+  deleteFile(options: { uri: string }): Promise<void>;
 }
 
 export declare const FolderPicker: FolderPickerPlugin;

@@ -29,6 +29,26 @@ public class FolderPickerPlugin extends Plugin {
         startActivityForResult(call, intent, "pickFolderResult");
     }
 
+    @PluginMethod
+    public void deleteFile(PluginCall call) {
+        String uriString = call.getString("uri");
+        if (uriString == null || uriString.isEmpty()) {
+            call.reject("missing uri");
+            return;
+        }
+        try {
+            Uri uri = Uri.parse(uriString);
+            boolean ok = DocumentsContract.deleteDocument(
+                getContext().getContentResolver(),
+                uri
+            );
+            if (ok) call.resolve();
+            else call.reject("delete failed");
+        } catch (Exception ex) {
+            call.reject("delete error: " + ex.getMessage());
+        }
+    }
+
     @ActivityCallback
     private void pickFolderResult(PluginCall call, ActivityResult result) {
         if (call == null) return;
