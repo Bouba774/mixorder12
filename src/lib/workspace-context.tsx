@@ -27,8 +27,11 @@ import {
   listRecentLibraries,
   touchRecentLibrary,
   forgetRecentLibrary,
+  saveLibraryManifest,
+  loadLibraryManifest,
   type RecentLibrary,
 } from "./library/recent";
+import { Capacitor } from "@capacitor/core";
 
 /**
  * MixOrder workspace state.
@@ -107,6 +110,13 @@ interface WorkspaceContextValue {
   refreshRecentLibraries: () => void;
   /** Remove a library from the recent list (metadata is kept). */
   forgetLibrary: (fingerprint: string) => void;
+  /**
+   * One-tap reopen of a previously imported library. Rebuilds a live
+   * project from the stored manifest — no folder picker, no re-analysis.
+   * Returns false when the library can't be reopened without a fresh pick
+   * (e.g. web session without persisted File handles).
+   */
+  reopenLibrary: (fingerprint: string) => boolean;
   /** Last import diff, if the current session started from a re-import. */
   lastImportDiff: ImportDiffSummary | null;
   /** Import from a web <input webkitdirectory> file list. */
@@ -266,6 +276,17 @@ function buildProject(
     trackCount: tracks.length,
     createdAt: snap ? project.createdAt : now,
   });
+  saveLibraryManifest(fp, {
+    v: 1,
+    name: imported.name,
+    createdAt: project.createdAt,
+    tracks: imported.tracks.map((t) => ({
+      originalName: t.originalName,
+      path: t.path,
+      mimeType: t.mimeType,
+      size: t.size,
+    })),
+  });
   return { project, diff };
 }
 
@@ -302,6 +323,30 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setProject(project);
     setLastImportDiff(diff);
     setRecentLibraries(listRecentLibraries());
+  }, []);
+
+  const reopenLibrary = useCallback((fingerprint: string): boolean => {
+    const manifest = loadLibraryManifest(fingerprint);
+    if (!manifest || manifest.tracks.length === 0) return false;
+    const native = Capacitor.isNativePlatform();
+    const imported: ImportedProject = {
+      name: manifest.name,
+      tracks: manifest.tracks.map((t) => ({
+        originalName: t.originalName,
+        path: t.path,
+        mimeType: t.mimeType,
+        size: t.size,
+        // Native: rebuild the playable URL from the SAF URI we stored.
+        // Web: no persistent handle — skip; caller should fall back to picker.
+        url: native ? Capacitor.convertFileSrc(t.path) : "",
+      })),
+    };
+    if (!native && imported.tracks.some((t) => !t.url)) return false;
+    const { project, diff } = buildProject(imported);
+    setProject(project);
+    setLastImportDiff(diff);
+    setRecentLibraries(listRecentLibraries());
+    return true;
   }, []);
 
   const openProject = useCallback((input: FileList | File[]) => {
@@ -616,6 +661,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       lastImportDiff,
       openProject,
       openImportedProject,
+      reopenLibrary,
       closeProject,
       updateTrack,
       setTrackAnalysis,
@@ -634,6 +680,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       lastImportDiff,
       openProject,
       openImportedProject,
+      reopenLibrary,
       closeProject,
       updateTrack,
       setTrackAnalysis,
