@@ -37,6 +37,7 @@ import { useLibraryView } from "@/lib/library/view-context";
 import { SORT_OPTIONS } from "@/lib/library/sort";
 import { useDuplicates } from "@/hooks/useDuplicates";
 import { PlayPauseButton } from "../player/PlayPauseButton";
+import { TrackInfoSheet } from "../TrackInfoSheet";
 
 // ─────────────────────────────────────────────────────────────
 // Types & constants
@@ -95,6 +96,7 @@ export function LibraryTab() {
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [infoTrackId, setInfoTrackId] = useState<TrackId | null>(null);
 
   const tracks = project?.tracks ?? [];
 
@@ -273,6 +275,7 @@ export function LibraryTab() {
                     isDuplicate={duplicateIds.has(t.id)}
                     canDrag={canReorder}
                     onToggleSelect={() => toggleSelect(t.id)}
+                    onOpenInfo={() => setInfoTrackId(t.id)}
                     style={{
                       animationDelay: `${Math.min(i * 12, 240)}ms`,
                     }}
@@ -375,6 +378,8 @@ export function LibraryTab() {
           </ul>
         </BottomSheet>
       )}
+
+      <TrackInfoSheet trackId={infoTrackId} onClose={() => setInfoTrackId(null)} />
     </div>
   );
 }
@@ -440,7 +445,7 @@ function EmptyState({
 
 function TrackCard({
   track, selected, selectionMode, isDuplicate, canDrag,
-  onToggleSelect, style,
+  onToggleSelect, onOpenInfo, style,
 }: {
   track: Track;
   selected: boolean;
@@ -448,6 +453,7 @@ function TrackCard({
   isDuplicate: boolean;
   canDrag: boolean;
   onToggleSelect: () => void;
+  onOpenInfo: () => void;
   style?: React.CSSProperties;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -574,7 +580,7 @@ function TrackCard({
       {/* Right: info button */}
       <button
         type="button"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); onOpenInfo(); }}
         aria-label="Informations du morceau"
         className="ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground/70 hover:bg-surface-elevated hover:text-foreground"
       >
