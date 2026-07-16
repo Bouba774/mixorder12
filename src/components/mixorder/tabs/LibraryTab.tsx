@@ -578,7 +578,7 @@ function TrackCard({
       {/* Right: info button */}
       <button
         type="button"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); onOpenInfo(); }}
         aria-label="Informations du morceau"
         className="ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground/70 hover:bg-surface-elevated hover:text-foreground"
       >
