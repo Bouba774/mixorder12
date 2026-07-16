@@ -19,7 +19,7 @@ import {
   Search, ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
   X, Trash2, Check,
   FolderInput, Move, Music2, Copy,
-  Clock, SlidersHorizontal,
+  Clock, SlidersHorizontal, Info,
 } from "lucide-react";
 import {
   DndContext, PointerSensor, TouchSensor, KeyboardSensor,
@@ -459,13 +459,26 @@ function TrackCard({
 
   const pad = "p-3";
   const gap = "gap-3";
-  const titleSize = "text-sm";
 
   const dndStyle: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     ...style,
   };
+
+  // Energy: derived from BPM (0..4 bars). Higher BPM → more energy.
+  const energy = track.bpm == null
+    ? 0
+    : track.bpm < 90 ? 1
+    : track.bpm < 110 ? 2
+    : track.bpm < 130 ? 3
+    : 4;
+  const energyColor =
+    energy >= 4 ? "bg-rose-500"
+    : energy === 3 ? "bg-orange-400"
+    : energy === 2 ? "bg-emerald-400"
+    : energy === 1 ? "bg-sky-400"
+    : "bg-muted-foreground/30";
 
   return (
     <li
@@ -515,9 +528,7 @@ function TrackCard({
       {/* Middle: name + meta */}
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <h3
-            className={`min-w-0 flex-1 truncate font-medium leading-tight text-foreground ${titleSize}`}
-          >
+          <h3 className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-tight text-foreground">
             {track.name}
           </h3>
           {hasMissing && (
@@ -546,72 +557,84 @@ function TrackCard({
           )}
         </div>
 
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
-          <MetaText>
-            <Clock className="h-3 w-3" />
-            <span className="tabular-nums">{formatDuration(track.durationSec)}</span>
-          </MetaText>
-
-          <Badge variant="bpm" filled={!missingBpm}>
+        <div className="mt-1.5 flex items-center gap-2 text-[12px]">
+          <CamelotPill camelot={track.camelot} />
+          <span className="tabular-nums font-medium text-muted-foreground">
             {missingBpm ? "— BPM" : `${Math.round(track.bpm!)} BPM`}
-          </Badge>
-          <Badge variant="key" filled={!missingKey}>
-            {track.musicalKey ?? "—"}
-          </Badge>
-          {track.camelot && (
-            <Badge variant="camelot" filled>
-              {track.camelot}
-            </Badge>
-          )}
-
-          <MetaText muted>
-            <span className="font-mono uppercase">{track.extension}</span>
-          </MetaText>
+          </span>
+          <EnergyBars level={energy} color={energyColor} />
+          <span className="inline-flex items-center gap-1 tabular-nums text-muted-foreground">
+            <Clock className="h-3 w-3" />
+            {formatDuration(track.durationSec)}
+          </span>
         </div>
 
       </div>
+
+      {/* Right: info button */}
+      <button
+        type="button"
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Informations du morceau"
+        className="ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground/70 hover:bg-surface-elevated hover:text-foreground"
+      >
+        <Info className="h-[18px] w-[18px]" strokeWidth={1.75} />
+      </button>
     </li>
   );
 }
 
-// STATUS_LABEL removed with the detailed density view.
-
-function MetaText({
-  children, muted,
-}: {
-  children: React.ReactNode;
-  muted?: boolean;
-}) {
+/**
+ * CamelotPill — colored pill showing ONLY the Camelot notation
+ * (e.g. "8A", "12B"). Classic musical-key notation is intentionally
+ * omitted from the main list — TempoKey parity.
+ */
+function CamelotPill({ camelot }: { camelot: string | null | undefined }) {
+  if (!camelot) {
+    return (
+      <span className="inline-flex h-5 min-w-[28px] items-center justify-center rounded-md border border-border bg-surface-elevated px-1.5 text-[11px] font-semibold text-muted-foreground/70 tabular-nums">
+        —
+      </span>
+    );
+  }
+  const isMinor = /A$/.test(camelot);
+  // Warm hues for minor (A), cool hues for major (B); mirrors TempoKey.
+  const n = parseInt(camelot, 10);
+  const swatchesA = [
+    "#F87171","#FB923C","#F59E0B","#FBBF24","#A3E635","#4ADE80",
+    "#34D399","#22D3EE","#60A5FA","#818CF8","#A78BFA","#F472B6",
+  ];
+  const swatchesB = [
+    "#60A5FA","#38BDF8","#22D3EE","#2DD4BF","#34D399","#A3E635",
+    "#FACC15","#FB923C","#F87171","#F472B6","#C084FC","#818CF8",
+  ];
+  const c = (isMinor ? swatchesA : swatchesB)[(n - 1) % 12] ?? "#93C5FD";
   return (
     <span
-      className={`inline-flex items-center gap-1 ${
-        muted ? "text-muted-foreground/70" : "text-muted-foreground"
-      }`}
+      className="inline-flex h-5 min-w-[28px] items-center justify-center rounded-md px-1.5 text-[11px] font-bold tabular-nums"
+      style={{
+        backgroundColor: `${c}22`,
+        color: c,
+        border: `1px solid ${c}55`,
+      }}
     >
-      {children}
+      {camelot}
     </span>
   );
 }
 
-function Badge({
-  children, variant, filled,
-}: {
-  children: React.ReactNode;
-  variant: "bpm" | "key" | "camelot";
-  filled: boolean;
-}) {
-  const palette = filled
-    ? variant === "bpm"
-      ? "bg-primary/15 text-primary border border-primary/20"
-      : variant === "key"
-      ? "bg-sky-500/15 text-sky-500 border border-sky-500/25"
-      : "bg-emerald-500/15 text-emerald-500 border border-emerald-500/25"
-    : "bg-surface-elevated text-muted-foreground/60 border border-border/60";
+function EnergyBars({ level, color }: { level: 0 | 1 | 2 | 3 | 4; color: string }) {
   return (
-    <span
-      className={`inline-flex h-5 items-center rounded-md px-1.5 text-[10.5px] font-semibold tabular-nums ${palette}`}
-    >
-      {children}
+    <span aria-label={`Énergie ${level}/4`} className="inline-flex items-end gap-[2px]">
+      {[0, 1, 2, 3].map((i) => (
+        <span
+          key={i}
+          className={`w-[3px] rounded-sm ${
+            i < level ? color : "bg-border-strong/50"
+          }`}
+          style={{ height: `${5 + i * 3}px` }}
+        />
+      ))}
     </span>
   );
 }

@@ -83,10 +83,13 @@ export function Workspace() {
 
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
-      {/* ─── Fixed top header ─── */}
+      {/* ─── Sticky top navigation area (header + active library + tabs) ─── */}
+      <div
+        className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur"
+        style={{ paddingTop: "env(safe-area-inset-top)" }}
+      >
       <header
-        className="sticky top-0 z-40 flex items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur"
-        style={{ paddingTop: "calc(env(safe-area-inset-top) + 0.75rem)", paddingBottom: "0.75rem" }}
+        className="flex items-center justify-between px-4 pb-3 pt-3"
       >
         <button
           type="button"
@@ -103,13 +106,13 @@ export function Workspace() {
           type="button"
           onClick={() => setTab(isSettings ? "library" : "settings")}
           aria-label={isSettings ? "Fermer les paramètres" : "Ouvrir les paramètres"}
-          className={`grid h-11 w-11 place-items-center rounded-full border border-border transition-colors ${
+          className={`grid h-10 w-10 place-items-center rounded-lg transition-colors ${
             isSettings
-              ? "bg-primary text-primary-foreground border-transparent"
-              : "bg-surface text-muted-foreground hover:text-foreground"
+              ? "text-primary"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          {isSettings ? <ArrowLeft className="h-5 w-5" /> : <SettingsIcon className="h-5 w-5" />}
+          {isSettings ? <ArrowLeft className="h-[22px] w-[22px]" /> : <SettingsIcon className="h-[22px] w-[22px]" strokeWidth={1.75} />}
         </button>
       </header>
 
@@ -118,38 +121,38 @@ export function Workspace() {
           {/* ─── Active library card ─── */}
           <section
             aria-label="Bibliothèque active"
-            className="mx-4 mt-4 rounded-2xl border border-border bg-surface p-4 shadow-card"
+            className="mx-4 mb-3 rounded-2xl border border-border bg-surface p-3.5 shadow-card"
           >
-            <div className="flex items-start gap-3">
+            <div className="flex items-center gap-3">
               <div
-                className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-primary-foreground shadow-gold"
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-primary-foreground shadow-gold"
                 style={{ background: "var(--gradient-primary)" }}
               >
-                <LibraryIcon className="h-7 w-7" strokeWidth={2.25} />
+                <LibraryIcon className="h-6 w-6" strokeWidth={2.25} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-display text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                  Bibliothèque active
-                </div>
-                <h1 className="mt-0.5 truncate font-display text-xl font-bold leading-tight text-foreground">
+                <h1 className="truncate font-display text-base font-bold leading-tight text-foreground">
                   {project.name || "Sans nom"}
                 </h1>
-                <div className="mt-2 text-sm font-medium text-foreground/90 tabular-nums">
-                  {total} morceau{total > 1 ? "x" : ""}
+                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="tabular-nums">
+                    {total} morceau{total > 1 ? "x" : ""}
+                  </span>
+                  <span aria-hidden>·</span>
+                  <span
+                    className={`inline-flex items-center gap-1 ${
+                      analysisDone ? "text-success" : "text-primary"
+                    }`}
+                  >
+                    {analysisDone ? (
+                      <CheckCircle2 className="h-3 w-3" />
+                    ) : (
+                      <Loader2 className={total === 0 ? "h-3 w-3" : "h-3 w-3 animate-spin"} />
+                    )}
+                    {analysisLabel}
+                  </span>
                 </div>
-                <div
-                  className={`mt-1 inline-flex items-center gap-1.5 text-sm font-medium ${
-                    analysisDone ? "text-success" : "text-primary"
-                  }`}
-                >
-                  {analysisDone ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <Loader2 className={total === 0 ? "h-4 w-4" : "h-4 w-4 animate-spin"} />
-                  )}
-                  {analysisLabel}
-                </div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
+                <div className="text-[11px] text-muted-foreground/80">
                   Importée {formatImportedRelative(project.createdAt)}
                 </div>
               </div>
@@ -157,7 +160,7 @@ export function Workspace() {
                 type="button"
                 onClick={closeProject}
                 aria-label="Changer de bibliothèque"
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-surface-elevated text-muted-foreground transition-colors hover:text-foreground hover:border-border-strong active:scale-95"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-surface-elevated text-muted-foreground transition-colors hover:text-foreground hover:border-border-strong active:scale-95"
               >
                 <FolderInput className="h-4 w-4" />
               </button>
@@ -171,6 +174,7 @@ export function Workspace() {
           />
         </>
       )}
+      </div>
 
       <main
         className={isSettings ? "flex-1 px-4 pt-4" : "flex-1 px-4 pt-3"}
@@ -224,7 +228,7 @@ function TabStrip({
   return (
     <nav
       aria-label="Sections MixOrder"
-      className="mt-4 border-b border-border"
+      className=""
     >
       <div
         ref={scrollerRef}
