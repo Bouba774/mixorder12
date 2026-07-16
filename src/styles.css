@@ -43,68 +43,67 @@
   --font-sans: "Inter", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Sora", "SF Pro Display", "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.25);
-  --shadow-sm: 0 2px 6px -1px oklch(0 0 0 / 0.3);
-  --shadow-md: 0 6px 20px -6px oklch(0 0 0 / 0.4);
-  --shadow-lg: 0 20px 40px -12px oklch(0 0 0 / 0.5);
-  --shadow-glow: 0 0 32px -8px color-mix(in oklab, var(--primary) 55%, transparent);
-  --shadow-elevated: 0 20px 60px -20px oklch(0 0 0 / 0.6);
+  --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.35);
+  --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.35);
+  --shadow-md: 0 4px 14px -6px oklch(0 0 0 / 0.45);
+  --shadow-lg: 0 12px 28px -12px oklch(0 0 0 / 0.55);
+  --shadow-glow: 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent);
+  --shadow-elevated: 0 16px 40px -20px oklch(0 0 0 / 0.6);
 }
 
 /* =========================================================
-   DARK THEME (default) — Deep Blue Night
+   DARK THEME (default) — Studio Noir (official MixOrder palette)
    ========================================================= */
 :root,
 .dark {
   --radius: 0.875rem;
 
-  /* Studio Deep — DJ-grade dark theme (violet intelligence, mint audio) */
-  --background: #0A0D14;
-  --foreground: #F3F5F7;
+  /* Studio Noir — sober blacks with a single precise green accent */
+  --background: #0F0F0F;
+  --foreground: #F8F8F8;
 
-  --surface: #121826;
-  --surface-elevated: #1A2235;
+  --surface: #202020;
+  --surface-elevated: #2A2A2A;
 
-  --card: #121826;
-  --card-foreground: #F3F5F7;
+  --card: #202020;
+  --card-foreground: #F8F8F8;
 
-  --popover: #1A2235;
-  --popover-foreground: #F3F5F7;
+  --popover: #202020;
+  --popover-foreground: #F8F8F8;
 
-  --primary: #8B5CF6;
-  --primary-foreground: #FFFFFF;
-  --primary-glow: #A78BFA;
+  --primary: #5DD62C;
+  --primary-foreground: #0A1A03;
+  --primary-glow: #5DD62C;
 
-  /* Kept legacy token name; now the mint audio accent used sparingly */
-  --bronze: #00E5A8;
+  --bronze: #337418;
 
-  --secondary: #1A2235;
-  --secondary-foreground: #F3F5F7;
+  --secondary: #202020;
+  --secondary-foreground: #F8F8F8;
 
-  --muted: #151B2A;
-  --muted-foreground: #97A0B3;
+  --muted: #181818;
+  --muted-foreground: #A1A1A1;
 
-  --accent: #00E5A8;
-  --accent-foreground: #052A22;
+  --accent: #5DD62C;
+  --accent-foreground: #0A1A03;
 
-  --action: #8B5CF6;
-  --action-foreground: #FFFFFF;
+  --action: #5DD62C;
+  --action-foreground: #0A1A03;
 
-  --success: #00E5A8;
-  --success-foreground: #052A22;
+  --success: #5DD62C;
+  --success-foreground: #0A1A03;
 
-  --destructive: #FF6B6B;
-  --destructive-foreground: #26090A;
+  --destructive: #E5484D;
+  --destructive-foreground: #FFFFFF;
 
-  --border: color-mix(in oklab, #97A0B3 16%, transparent);
-  --border-strong: color-mix(in oklab, #97A0B3 30%, transparent);
-  --input: color-mix(in oklab, #97A0B3 16%, transparent);
-  --ring: color-mix(in oklab, #8B5CF6 65%, transparent);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: color-mix(in oklab, #5DD62C 55%, transparent);
 
-  --gradient-primary: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 60%, #00E5A8 130%);
-  --gradient-bronze: linear-gradient(135deg, #00E5A8, #22D3EE);
-  --gradient-surface: linear-gradient(180deg, #1A2235 0%, #0A0D14 100%);
-  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #8B5CF6 26%, transparent), transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #5DD62C 0%, #337418 100%);
+  --gradient-bronze: linear-gradient(135deg, #337418, #5DD62C);
+  --gradient-surface: linear-gradient(180deg, #202020 0%, #0F0F0F 100%);
+  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #5DD62C 12%, transparent), transparent 60%);
 
   color-scheme: dark;
 }
@@ -115,51 +114,51 @@
 .light {
   --radius: 0.875rem;
 
-  --background: #F5F6FA;
-  --foreground: #0A0D14;
+  --background: #F7F7F7;
+  --foreground: #0F0F0F;
 
   --surface: #FFFFFF;
-  --surface-elevated: #F0F1F7;
+  --surface-elevated: #F0F0F0;
 
   --card: #FFFFFF;
-  --card-foreground: #0A0D14;
+  --card-foreground: #0F0F0F;
 
   --popover: #FFFFFF;
-  --popover-foreground: #0A0D14;
+  --popover-foreground: #0F0F0F;
 
-  --primary: #7C3AED;
+  --primary: #337418;
   --primary-foreground: #FFFFFF;
-  --primary-glow: #A78BFA;
+  --primary-glow: #5DD62C;
 
-  --bronze: #00B587;
+  --bronze: #337418;
 
-  --secondary: #EEEAFB;
-  --secondary-foreground: #4C1D95;
+  --secondary: #EAEAEA;
+  --secondary-foreground: #0F0F0F;
 
-  --muted: #EEF0F6;
-  --muted-foreground: #5A6478;
+  --muted: #F0F0F0;
+  --muted-foreground: #5A5A5A;
 
-  --accent: #00B587;
-  --accent-foreground: #052A22;
+  --accent: #337418;
+  --accent-foreground: #FFFFFF;
 
-  --action: #7C3AED;
+  --action: #337418;
   --action-foreground: #FFFFFF;
 
-  --success: #00B587;
+  --success: #337418;
   --success-foreground: #FFFFFF;
 
-  --destructive: #E64545;
+  --destructive: #E5484D;
   --destructive-foreground: #FFFFFF;
 
-  --border: color-mix(in oklab, #0A0D14 12%, transparent);
-  --border-strong: color-mix(in oklab, #0A0D14 24%, transparent);
-  --input: color-mix(in oklab, #0A0D14 14%, transparent);
-  --ring: color-mix(in oklab, #7C3AED 55%, transparent);
+  --border: rgba(15, 15, 15, 0.10);
+  --border-strong: rgba(15, 15, 15, 0.20);
+  --input: rgba(15, 15, 15, 0.12);
+  --ring: color-mix(in oklab, #337418 55%, transparent);
 
-  --gradient-primary: linear-gradient(135deg, #7C3AED 0%, #A78BFA 60%, #00B587 130%);
-  --gradient-bronze: linear-gradient(135deg, #00B587, #22D3EE);
-  --gradient-surface: linear-gradient(180deg, #FFFFFF, #F5F6FA);
-  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #7C3AED 14%, transparent), transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #337418 0%, #5DD62C 100%);
+  --gradient-bronze: linear-gradient(135deg, #337418, #5DD62C);
+  --gradient-surface: linear-gradient(180deg, #FFFFFF, #F7F7F7);
+  --gradient-radial-gold: radial-gradient(circle at 50% 0%, color-mix(in oklab, #337418 8%, transparent), transparent 60%);
 
   color-scheme: light;
 }
