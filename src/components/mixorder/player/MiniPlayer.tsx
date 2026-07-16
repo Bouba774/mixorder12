@@ -92,53 +92,36 @@ export function MiniPlayer({ bottomOffset = 0 }: MiniPlayerProps = {}) {
         />
       </div>
 
-      <div className="mx-auto flex max-w-xl items-center gap-2 px-3 py-2.5">
+      <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
         {/* Artwork placeholder */}
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary/25 to-accent/40 text-primary">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-primary/25 to-accent/40 text-primary">
           <Music2 className="h-5 w-5" />
         </div>
 
         {/* Info */}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold leading-tight">
+          <p className="truncate text-[14px] font-semibold leading-tight text-foreground">
             {t.name}
           </p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0 text-[10px] text-muted-foreground">
+          <div className="mt-1 flex items-center gap-1.5 truncate text-[11.5px] font-medium text-muted-foreground">
             <span className="tabular-nums">
               {formatTime(position)} / {formatDuration(duration || t.durationSec) || "—:—"}
             </span>
             {t.bpm != null && (
               <>
-                <span aria-hidden>·</span>
+                <span aria-hidden className="opacity-60">•</span>
                 <span className="tabular-nums">{Math.round(t.bpm)} BPM</span>
               </>
             )}
-            {t.camelot && (
+            {(t.camelot || t.musicalKey) && (
               <>
-                <span aria-hidden>·</span>
-                <span>{t.camelot}</span>
-              </>
-            )}
-            {!t.camelot && t.musicalKey && (
-              <>
-                <span aria-hidden>·</span>
-                <span>{t.musicalKey}</span>
-              </>
-            )}
-            {t.extension && (
-              <>
-                <span aria-hidden>·</span>
-                <span className="uppercase">.{t.extension}</span>
-              </>
-            )}
-            {t.size > 0 && (
-              <>
-                <span aria-hidden>·</span>
-                <span className="tabular-nums">{(t.size / (1024 * 1024)).toFixed(1)} MB</span>
+                <span aria-hidden className="opacity-60">•</span>
+                <span>{t.camelot ?? t.musicalKey}</span>
               </>
             )}
           </div>
         </div>
+
 
         {/* Transport */}
         <div className="flex items-center gap-0.5">
