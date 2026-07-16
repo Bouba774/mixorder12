@@ -269,6 +269,17 @@ function buildProject(
     trackCount: tracks.length,
     createdAt: snap ? project.createdAt : now,
   });
+  saveLibraryManifest(fp, {
+    v: 1,
+    name: imported.name,
+    createdAt: project.createdAt,
+    tracks: imported.tracks.map((t) => ({
+      originalName: t.originalName,
+      path: t.path,
+      mimeType: t.mimeType,
+      size: t.size,
+    })),
+  });
   return { project, diff };
 }
 
