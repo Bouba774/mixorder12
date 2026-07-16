@@ -443,7 +443,7 @@ function EmptyState({
 
 function TrackCard({
   track, selected, selectionMode, isDuplicate, canDrag,
-  onToggleSelect, style,
+  onToggleSelect, onOpenInfo, style,
 }: {
   track: Track;
   selected: boolean;
@@ -451,6 +451,7 @@ function TrackCard({
   isDuplicate: boolean;
   canDrag: boolean;
   onToggleSelect: () => void;
+  onOpenInfo: () => void;
   style?: React.CSSProperties;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
