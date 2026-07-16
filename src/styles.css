@@ -40,8 +40,8 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --font-sans: "Inter", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Sora", "SF Pro Display", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "General Sans", "Inter", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Clash Display", "Sora", "SF Pro Display", "Inter", ui-sans-serif, system-ui, sans-serif;
 
   --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.35);
   --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.35);
